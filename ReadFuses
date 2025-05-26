@@ -1,0 +1,7 @@
+##!/bin/bash
+
+echo "Cleaning up"
+echo "Write to target"
+avrdude -P /dev/spidev0.0:/dev/gpiochip0 -c linuxspi -p m8 -U lfuse:r:-:h -U hfuse:r:-:h
+
+
