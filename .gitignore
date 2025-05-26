@@ -402,3 +402,6 @@ FodyWeavers.xsd
 *.atsln
 keypad.componentinfo.xml
 keypad.cproj
+a.out
+symbols
+test.hex
