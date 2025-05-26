@@ -45,8 +45,8 @@ void EEPROM_read_string(unsigned int uiAddress, char *str, int n) {
 //
 // handle the TWI interrupt. Note that the interrupt flag is not cleared by hardware and must be cleared manually in the interrupt routine
 ISR(TWI_vect) {
-	TWCR &= ~(_BV(TWSTO) | _BV(TWSTA) | _BV(TWEA));		// clear the action bits and acknowledge ready for next thing
-	unsigned char TWI_status = TWSR & TW_STATUS_MASK;	// get the status without the prescaler bits
+	unsigned char controlCopy =  _BV(TWEN) | _BV(TWIE) | _BV(TWINT);	// clear the action bits and acknowledge ready for next thing
+	unsigned char TWI_status = TWSR & TW_STATUS_MASK;		// get the status without the prescaler bits
 	
 	switch(TWI_status) {
 		case TW_START :
@@ -55,26 +55,26 @@ ISR(TWI_vect) {
 		case TW_MT_SLA_ACK:
 		case TW_MT_DATA_ACK:
 			if(TWI_index < TWI_datacount) TWDR = TWI_send_data[TWI_index++];
-			else TWCR |= _BV(TWSTO);					// all finished, send stop
+			else controlCopy |= _BV(TWSTO);					// all finished, send stop
 			break;
 		case TW_MR_SLA_ACK:
-			if (TWI_datacount != 1) TWCR |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
+			if (TWI_datacount != 1) controlCopy |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
 			break;	
 		case TW_MR_DATA_ACK:
 			TWI_read_data[TWI_index++] = TWDR;				// get the next byte of data
-			if(TWI_index < (TWI_datacount - 1)) TWCR |= _BV(TWEA); // Acknowledge unless we are on the last byte
+			if(TWI_index < (TWI_datacount - 1)) controlCopy |= _BV(TWEA); // Acknowledge unless we are on the last byte
 			break;
 		case TW_MR_DATA_NACK:
 			TWI_read_data[TWI_index] = TWDR;					// get the last byte of data
-			TWCR |= _BV(TWSTO);							// all finished, send stop
+			controlCopy |= _BV(TWSTO);							// all finished, send stop
 			TWI_flags &= ~_BV(TWI_busy);
 			break;
 		default:
-			TWCR |= _BV(TWSTO);							// an error has occurred, send stop and signal error
+			controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error
 			TWI_flags |= _BV(TWI_flag_error);
 			TWI_flags &= ~_BV(TWI_busy);
 	}
-	TWCR |= _BV(TWINT);									// This clears the interrupt and starts the next action
+	TWCR = controlCopy;									// This clears the interrupt and starts the next action
 }
 
 void i2cInit() {
@@ -120,7 +120,7 @@ unsigned char BCDByte(unsigned char n) {
 //_______________________________________________________________________________________
 //
 
-#define		DBG_OUT		2									// PD2 which is shared with nREDE
+#define		DBG_OUT		3									// PD3 
 
 void debugOn() { PORTD |= _BV(DBG_OUT); }					// turn on the debug output
 	

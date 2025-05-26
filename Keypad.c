@@ -114,7 +114,7 @@ void setup()
 	PORTC = 0xFF;
 	PORTD = 0xFF;										// Starting with all ports set to 0xFF will make any pins configured as inputs have pullups enabled
 	
-//	wdt_enable(WDTO_2S);								// turn on watchdog and enable change of the prescaler (must be done within 4 clock cycles
+	wdt_enable(WDTO_2S);								// turn on watchdog and enable change of the prescaler (must be done within 4 clock cycles
 	
 	OSCCAL = 0xB8;										// trim the internal oscillator to get timing accurate
 	
@@ -187,46 +187,48 @@ ISR(SPI_STC_vect)
 	mem_ptr++;											// Point at next half digit	
 	if (mem_ptr > 0x07) mem_ptr = 0;					// Make sure memory pointer never exceeds array size
 	
-	/* Read switch values
-	 Bits PC4, PC5 and PC6 contain the button presses in the following order
+	if((flags & _BV(KEYPAD_DIS)) == 0) {
+		/* Read switch values
+		 Bits PC4, PC5 and PC6 contain the button presses in the following order
 	
-		(mem_ptr)	PC4	PC5	PC6
-		Y3			S7	S8	S9
-		Y2			S4	S5	S6
-		Y1			S1	S2	S3
-		Y0			S0
-	*/
-	unsigned short portCtemp = ~PINC & 0b00111000;		// extract only the lines representing buttons
+			(mem_ptr)	PC4	PC5	PC6
+			Y3			S7	S8	S9
+			Y2			S4	S5	S6
+			Y1			S1	S2	S3
+			Y0			S0
+		*/
+		unsigned short portCtemp = ~PINC & 0b00111000;		// extract only the lines representing buttons
 	
-	if (mem_ptr == 1) {	sample = ((portCtemp >> 3) & 0b0000000000000001); } // The first one of the cycle clears all other bits in sample Just the one bit to go in the bottom
-	if (mem_ptr == 2) {	sample |= portCtemp >> 2; }
-	if (mem_ptr == 3) {	sample |= portCtemp << 1; } 	
-	if (mem_ptr == 4) {	sample |= portCtemp << 4; } 
+		if (mem_ptr == 1) {	sample = ((portCtemp >> 3) & 0b0000000000000001); } // The first one of the cycle clears all other bits in sample Just the one bit to go in the bottom
+		if (mem_ptr == 2) {	sample |= portCtemp >> 2; }
+		if (mem_ptr == 3) {	sample |= portCtemp << 1; } 	
+		if (mem_ptr == 4) {	sample |= portCtemp << 4; } 
 	
-	if(mem_ptr == 0x07) 									// only do the debounce on the 8th digit - this means all buttons will be sampled
-		{
-		if(holdOff != 0) holdOff--;								// if the holdoff counter is active then decrement it
+		if(mem_ptr == 0x07) 									// only do the debounce on the 8th digit - this means all buttons will be sampled
+			{
+			if(holdOff != 0) holdOff--;								// if the holdoff counter is active then decrement it
 		
-		// Switch debounce stuff here to make sure it does not upset timing make a bright spot on the display
-		// Debounce switches using vertical counters counting up to 4.
-		// Only debounces on switch release (assuming a 1 = switch pressed)
-		unsigned short delta;
+			// Switch debounce stuff here to make sure it does not upset timing make a bright spot on the display
+			// Debounce switches using vertical counters counting up to 4.
+			// Only debounces on switch release (assuming a 1 = switch pressed)
+			unsigned short delta;
 
-		delta = buttonState ^ sample;						// bits in delta indicate a change of state since last time
-		debounceCount1 = (debounceCount1 ^ debounceCount0) & (delta & sample); // ripple the counter along (unless button not changed or it is a release)
-		debounceCount0 = ~debounceCount0 & (delta & sample); // only start a de-bounce count if a button is released
-		buttonChanged = (delta & ~(debounceCount0 | debounceCount1)); // bits set if a change has occurred
-		buttonState ^= buttonChanged; 						// Update the stored state of the buttons only when count gets to 4)
+			delta = buttonState ^ sample;						// bits in delta indicate a change of state since last time
+			debounceCount1 = (debounceCount1 ^ debounceCount0) & (delta & sample); // ripple the counter along (unless button not changed or it is a release)
+			debounceCount0 = ~debounceCount0 & (delta & sample); // only start a de-bounce count if a button is released
+			buttonChanged = (delta & ~(debounceCount0 | debounceCount1)); // bits set if a change has occurred
+			buttonState ^= buttonChanged; 						// Update the stored state of the buttons only when count gets to 4)
 		
-		if(buttonChanged && (keyBufPtr < 20))				// only store button presses if space in buffer
-		{	
-			uint16_t s = buttonState & buttonChanged;				// we are only interested in presses
-			for ( unsigned char i = '0'; i <= '9'; i++)	
-				{
-					if (s & 0x01) { keyBuf[keyBufPtr] = i;  keyBufPtr++;  } // if button pressed then store in buffer
-					s >>= 1;
-				}
-			buttonChanged = 0;
+			if(buttonChanged && (keyBufPtr < 20))				// only store button presses if space in buffer
+			{	
+				uint16_t s = buttonState & buttonChanged;				// we are only interested in presses
+				for ( unsigned char i = '0'; i <= '9'; i++)	
+					{
+						if (s & 0x01) { keyBuf[keyBufPtr] = i;  keyBufPtr++;  } // if button pressed then store in buffer
+						s >>= 1;
+					}
+				buttonChanged = 0;
+			}
 		}
 	}
 }
@@ -437,12 +439,14 @@ void procesMenuItem() {
 		case TYPE_SAFE:
 			break;
 		case TYPE_RANGE:
-			VL6180_Start_Range();					// start single range measurement
-			VL6180_Poll_Range();					// poll the VL6180 till new sample ready
-			dist = VL6180_Read_Range();				// read range result
-			VL6180_Clear_Interrupts();				// clear the interrupt on VL6180
+			if(menuItem == TYPE_RANGE) {	// only if not in menu - keypad conflicts with IIC
+				VL6180_Start_Range();					// start single range measurement
+				VL6180_Poll_Range();					// poll the VL6180 till new sample ready
+				dist = VL6180_Read_Range();				// read range result
+				VL6180_Clear_Interrupts();				// clear the interrupt on VL6180
 			
-			dispWriteDouble(dist, dispMem);			// display the distance read
+				dispWriteDouble(dist, dispMem);			// display the distance read
+			}
 		default:
 			break;
 		}
@@ -537,8 +541,10 @@ int main (void)
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
-		if(VL6180_Init() !=0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
-		flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
+		if(menuItem == TYPE_RANGE) {	// only if not in menu - keypad conflicts with IIC
+			if(VL6180_Init() !=0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
+			flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
+			}
 	default:
 		break;
 	}

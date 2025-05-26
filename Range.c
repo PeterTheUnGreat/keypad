@@ -125,7 +125,7 @@ int VL6180_Start_Range() {
 //
 int VL6180_Poll_Range() {
 	// wait for new measurement ready status
-	do { ReadByte(0x04f); } while ((TWI_read_data[0] & 0x07) != 0x04);
+	do { ReadByte(0x04f); wdt_reset(); } while ((TWI_read_data[0] & 0x07) != 0x04);
 	return 0;
 }
 
