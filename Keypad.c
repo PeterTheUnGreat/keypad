@@ -537,7 +537,7 @@ int main (void)
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
-		VL6180_Init();				// load settings onto VL6180X
+		if(VL6180_Init() !=0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
 		flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
 	default:
 		break;
