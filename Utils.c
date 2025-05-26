@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include <avr/wdt.h>
 #include <util/twi.h>
+#include <avr/interrupt.h>
 
 #include "Utils.h"
 
@@ -49,7 +50,7 @@ ISR(TWI_vect) {
 	
 	switch(TWI_status) {
 		case TW_START :
-			TWDR = (TWI_address << 1) + (((TWI_flags & _BV(TWI_flag_writing)) !=0) ? TW_WRITE : TW_READ )); // Set the address and read write bit
+			TWDR = (TWI_address << 1) + (((TWI_flags & _BV(TWI_flag_writing)) !=0) ? TW_WRITE : TW_READ ); // Set the address and read write bit
 			break;
 		case TW_MT_SLA_ACK:
 			break;

@@ -35,8 +35,8 @@ void EEPROM_write_string(unsigned int uiAddress, char *str, int n);
 void EEPROM_read_string(unsigned int uiAddress, char *str, int n);
 
 void i2cInit();
-int i2cWrite(unsigned short IIC_addr, unsigned char *data, int n);
-int i2cRead(unsigned short IIC_addr, unsigned char *data, int n);
+int i2cWrite(unsigned char IIC_addr, int n);
+int i2cRead(unsigned char IIC_addr, int n);
 
 unsigned char BCDByte(unsigned char n);
 

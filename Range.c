@@ -14,11 +14,10 @@
 //_______________________________________________________________________________________
 //
 void WriteByte(unsigned short reg, unsigned char data) {
-	unsigned char data_write[3];
-	data_write[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
-	data_write[1] = reg & 0xFF;					// LSB of register IIC_address
-	data_write[2] = data & 0xFF;
-	i2cWrite(IIC_addr, data_write, 3);
+	TWI_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
+	TWI_data[1] = reg & 0xFF;					// LSB of register IIC_address
+	TWI_data[2] = data & 0xFF;
+	i2cWrite(IIC_addr, 3);
 }
 
 //_______________________________________________________________________________________
@@ -26,13 +25,11 @@ void WriteByte(unsigned short reg, unsigned char data) {
 //_______________________________________________________________________________________
 //
 char ReadByte(unsigned short reg) {
-	unsigned char data_write[2];
-	unsigned char data_read[1];
-	data_write[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
-	data_write[1] = reg & 0xFF;					// LSB of register IIC_address
-	i2cWrite(IIC_addr, data_write, 2);
-	i2cRead(IIC_addr, data_read, 1);
-	return data_read[0];
+	TWI_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
+	TWI_data[1] = reg & 0xFF;					// LSB of register IIC_address
+	i2cWrite(IIC_addr, 2);
+	i2cRead(IIC_addr, 1);
+	return TWI_data[0];
 }
 
 //_______________________________________________________________________________________
