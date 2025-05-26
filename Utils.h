@@ -25,8 +25,11 @@ volatile unsigned char	TWI_flags;
 unsigned char	TWI_address;
 
 volatile int	TWI_datacount;
-#define		TWI_max_data			10
-volatile	unsigned char	TWI_data[TWI_max_data];	// store for TWI data
+volatile int	TWI_index;
+#define			TWI_max_data			4
+unsigned char	TWI_send_data[TWI_max_data];	// store for TWI data
+volatile unsigned char	TWI_read_data[TWI_max_data];	// store for TWI data
+
 //_______________________________________________________________________________________
 
 void EEPROM_write(unsigned int uiAddress, unsigned char ucData);

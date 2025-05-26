@@ -45,7 +45,7 @@ void EEPROM_read_string(unsigned int uiAddress, char *str, int n) {
 //
 // handle the TWI interrupt. Note that the interrupt flag is not cleared by hardware and must be cleared manually in the interrupt routine
 ISR(TWI_vect) {
-	TWCR &= ~(_BV(TWSTO) | _BV(TWSTA));					// clear the action bits ready for next thing
+	TWCR &= ~(_BV(TWSTO) | _BV(TWSTA) | _BV(TWEA));		// clear the action bits and acknowledge ready for next thing
 	unsigned char TWI_status = TWSR & TW_STATUS_MASK;	// get the status without the prescaler bits
 	
 	switch(TWI_status) {
@@ -53,14 +53,19 @@ ISR(TWI_vect) {
 			TWDR = (TWI_address << 1) + (((TWI_flags & _BV(TWI_flag_writing)) !=0) ? TW_WRITE : TW_READ ); // Set the address and read write bit
 			break;
 		case TW_MT_SLA_ACK:
-			break;
 		case TW_MT_DATA_ACK:
+			if(TWI_index < TWI_datacount) TWDR = TWI_send_data[TWI_index++];
+			else TWCR |= _BV(TWSTO);					// all finished, send stop
 			break;
 		case TW_MR_SLA_ACK:
+			if (TWI_datacount != 1) TWCR |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
 			break;	
 		case TW_MR_DATA_ACK:
+			TWI_read_data[TWI_index++] = TWDR;				// get the next byte of data
+			if(TWI_index < (TWI_datacount - 1)) TWCR |= _BV(TWEA); // Acknowledge unless we are on the last byte
 			break;
 		case TW_MR_DATA_NACK:
+			TWI_read_data[TWI_index] = TWDR;					// get the last byte of data
 			TWCR |= _BV(TWSTO);							// all finished, send stop
 			TWI_flags &= ~_BV(TWI_busy);
 			break;
@@ -85,6 +90,7 @@ int i2cWrite(unsigned char IIC_addr, int n) {
 	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing				
 	TWI_flags = _BV(TWI_flag_writing) + _BV(TWI_busy);					
 	TWI_datacount = n;
+	TWI_index = 0;
 	TWI_address = IIC_addr;
 	i2cStart();											// initiate transfer by sending send start condition
 	return 0;
@@ -94,6 +100,7 @@ int i2cRead(unsigned char IIC_addr, int n) {
 	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing
 	TWI_flags = _BV(TWI_busy);
 	TWI_datacount = n;
+	TWI_index = 0;
 	TWI_address = IIC_addr;
 	i2cStart();											// initiate transfer by sending send start condition
 	return 0;

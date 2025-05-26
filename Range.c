@@ -6,6 +6,7 @@
  */ 
 
 #include "Utils.h"
+#include <avr/wdt.h>
 
 #define IIC_addr (0x29)								// I²C IIC_address of VL6180
 
@@ -13,23 +14,36 @@
 // Split 16-bit register IIC_address into two bytes and write the IIC_address + data via I²C
 //_______________________________________________________________________________________
 //
-void WriteByte(unsigned short reg, unsigned char data) {
-	TWI_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
-	TWI_data[1] = reg & 0xFF;					// LSB of register IIC_address
-	TWI_data[2] = data & 0xFF;
-	i2cWrite(IIC_addr, 3);
+int WriteByte(unsigned short reg, unsigned char data) {
+	TWI_send_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
+	TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
+	TWI_send_data[2] = data & 0xFF;
+	for(int tries = 3; tries > 0 ; tries--) {
+		i2cWrite(IIC_addr, 3); 
+		while((TWI_flags & TWI_busy) != 0) wdt_reset();
+		if ((TWI_flags & TWI_flag_error) == 0) return 0;
+	}
+	return -1;										 // return -1 to indicate fail after three tries
 }
 
 //_______________________________________________________________________________________
 // Split 16-bit register IIC_address into two bytes and write required register IIC_address to VL6180 and read the data back
 //_______________________________________________________________________________________
 //
-char ReadByte(unsigned short reg) {
-	TWI_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
-	TWI_data[1] = reg & 0xFF;					// LSB of register IIC_address
-	i2cWrite(IIC_addr, 2);
-	i2cRead(IIC_addr, 1);
-	return TWI_data[0];
+int ReadByte(unsigned short reg) {
+	TWI_send_data[0] = (reg >> 8) & 0xFF;			// MSB of register IIC_address
+	TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
+	
+	for(int tries = 3; tries > 0 ; tries--) {
+		i2cWrite(IIC_addr, 2);
+		while((TWI_flags & TWI_busy) != 0) wdt_reset();
+		if ((TWI_flags & TWI_flag_error) == 0) {
+			i2cRead(IIC_addr, 1);
+			while((TWI_flags & TWI_busy) != 0) wdt_reset();
+			if ((TWI_flags & TWI_flag_error) == 0) return 0;
+		}
+	}	
+	return -1;										// return -1 to indicate fail after three tries	
 }
 
 //_______________________________________________________________________________________
@@ -89,11 +103,10 @@ void VL6180_Init_Registers() {
 //
 int VL6180_Init() {
 	i2cInit();									// prepare the IIC interface
-	char reset;
-	reset = ReadByte(0x016);
-	if (reset==1){								// check to see has it be Initialized already
+	if(ReadByte(0x016) != 0) return -1;
+	if (TWI_read_data[0] == 1){					// check to see has it be Initialized already
 		VL6180_Init_Registers();		
-		WriteByte(0x016, 0x00);					//change fresh out of set status to 0
+		if(WriteByte(0x016, 0x00) != 0) return -1;	//change fresh out of set status to 0
 	}
 	return 0;
 }
@@ -103,8 +116,7 @@ int VL6180_Init() {
 //_______________________________________________________________________________________
 //
 int VL6180_Start_Range() {
-	WriteByte(0x018,0x01);
-	return 0;
+	return WriteByte(0x018,0x01);
 }
 
 //_______________________________________________________________________________________
@@ -112,16 +124,8 @@ int VL6180_Start_Range() {
 //_______________________________________________________________________________________
 //
 int VL6180_Poll_Range() {
-	char status;
-	char range_status;
-	// check the status
-	status = ReadByte(0x04f);
-	range_status = status & 0x07;
 	// wait for new measurement ready status
-	while (range_status != 0x04) {
-		status = ReadByte(0x04f);
-		range_status = status & 0x07;
-	}
+	do { ReadByte(0x04f); } while ((TWI_read_data[0] & 0x07) != 0x04);
 	return 0;
 }
 
@@ -130,9 +134,8 @@ int VL6180_Poll_Range() {
 //_______________________________________________________________________________________
 //
 int VL6180_Read_Range() {
-	int range;
-	range=ReadByte(0x062);
-	return range;
+	if(ReadByte(0x062) != 0) return -1;
+	return TWI_read_data[0];
 }
 
 //_______________________________________________________________________________________
@@ -140,7 +143,6 @@ int VL6180_Read_Range() {
 //_______________________________________________________________________________________
 //
 int VL6180_Clear_Interrupts() {
-	WriteByte(0x015,0x07);
-	return 0;
+	return WriteByte(0x015,0x07);
 }
 
