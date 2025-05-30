@@ -43,6 +43,7 @@ int i2cRead(unsigned char IIC_addr, int n);
 
 unsigned char BCDByte(unsigned char n);
 
+void initDebug();
 void debugOn();			
 void debugOff();			
 void debugToggle();

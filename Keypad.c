@@ -122,6 +122,7 @@ void setup()
 	
 	initDisplay();
 	initKeyInput();
+	initDebug();
 	initComms(EEPROM_read(EEPROM_RS485_ADDR));			// Start the RS485 comms with this units address read from EEPROM
 	unitType = EEPROM_read(EEPROM_TYPE);				// Get the type of this unit from EEPROM
 	if (unitType >= MAX_TYPES) unitType = TYPE_CLOCK;   // bit of a failsafe
@@ -138,6 +139,8 @@ void setup()
 		break;
 	case TYPE_SAFE:
 		break;
+	case TYPE_RANGE:
+		VL6180_Init();
 	default:
 		break;
 	}
@@ -183,6 +186,8 @@ ISR(SPI_STC_vect)
 	PORTB |= _BV(RCLK);  								// set pin 0 of port B high
 	PORTB &= ~_BV(RCLK); 								// set pin 0 of port B low  // latch onto display
 	PORTC = (PORTC & ~0x07) | mem_ptr;					// Select the current digit
+	
+	debugPulse();	
 	
 	mem_ptr++;											// Point at next half digit	
 	if (mem_ptr > 0x07) mem_ptr = 0;					// Make sure memory pointer never exceeds array size
@@ -333,7 +338,10 @@ void signalResetSource()
 
 // execute a test routine
 void doTest() {
-	sendMsg(MSG_POLL, 0);
+//	sendMsg(MSG_POLL, 0);
+	TWI_send_data[0] = 0x10;
+	TWI_send_data[1] = 0x34;
+	i2cWrite( 0xFC, 2 );
 	displayAndWait("SENT", 32, _BV(FLASH_F));
 }
 

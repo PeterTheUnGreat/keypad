@@ -79,15 +79,15 @@ ISR(TWI_vect) {
 
 void i2cInit() {
 	TWBR = 0;											// run the TWI as fast as it will go
-	TWCR = _BV(TWEN) | _BV(TWIE);						// turn on the TWI and enable interrupts
+	TWCR = _BV(TWEN);									// turn on the TWI
 }
 
 void i2cStart() {
-	TWCR |= _BV(TWINT) | _BV(TWSTA);					// send start
+	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
 }
 
 int i2cWrite(unsigned char IIC_addr, int n) {
-	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing				
+//	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing			
 	TWI_flags = _BV(TWI_flag_writing) + _BV(TWI_busy);					
 	TWI_datacount = n;
 	TWI_index = 0;
@@ -121,6 +121,8 @@ unsigned char BCDByte(unsigned char n) {
 //
 
 #define		DBG_OUT		3									// PD3 
+
+void initDebug() { DDRD |= _BV(DBG_OUT); }
 
 void debugOn() { PORTD |= _BV(DBG_OUT); }					// turn on the debug output
 	
