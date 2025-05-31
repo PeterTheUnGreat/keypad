@@ -7,6 +7,7 @@
 
 #include "Utils.h"
 #include <avr/wdt.h>
+#include <stdbool.h>
 
 #define IIC_addr (0x29)								// I²C IIC_address of VL6180
 
@@ -19,8 +20,8 @@ int WriteByte(unsigned short reg, unsigned char data) {
 	TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
 	TWI_send_data[2] = data & 0xFF;
 	for(int tries = 3; tries > 0 ; tries--) {
-		i2cWrite(IIC_addr, 3); 
-		while((TWI_flags & TWI_busy) != 0) wdt_reset();
+		i2cTransfer(IIC_addr, 3, true); 
+		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
 		if ((TWI_flags & TWI_flag_error) == 0) return 0;
 	}
 	return -1;										 // return -1 to indicate fail after three tries
@@ -35,11 +36,11 @@ int ReadByte(unsigned short reg) {
 	TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
 	
 	for(int tries = 3; tries > 0 ; tries--) {
-		i2cWrite(IIC_addr, 2);
-		while((TWI_flags & TWI_busy) != 0) wdt_reset();
+		i2cTransfer(IIC_addr, 2, true);
+		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
 		if ((TWI_flags & TWI_flag_error) == 0) {
-			i2cRead(IIC_addr, 1);
-			while((TWI_flags & TWI_busy) != 0) wdt_reset();
+			i2cTransfer(IIC_addr, 1, false);
+			while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
 			if ((TWI_flags & TWI_flag_error) == 0) return 0;
 		}
 	}	

@@ -9,8 +9,7 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
-#define _FALSE	0
-#define _TRUE	1
+#include <stdbool.h>
 
 //_______________________________________________________________________________________
 // Flags to control TWI
@@ -18,9 +17,7 @@
 //
 volatile unsigned char	TWI_flags;
 
-#define		TWI_flag_writing		0		// set when we are transmitting
-#define		TWI_flag_error			1		// set if the last TWI transaction failed
-#define		TWI_busy				2		// we are doing a transfer
+#define		TWI_flag_error			0		// set if the last TWI transaction failed
 
 unsigned char	TWI_address;
 
@@ -37,9 +34,10 @@ unsigned char EEPROM_read(unsigned int uiAddress);
 void EEPROM_write_string(unsigned int uiAddress, char *str, int n);
 void EEPROM_read_string(unsigned int uiAddress, char *str, int n);
 
+//_______________________________________________________________________________________
+
 void i2cInit();
-int i2cWrite(unsigned char IIC_addr, int n);
-int i2cRead(unsigned char IIC_addr, int n);
+int i2cTransfer(unsigned char IIC_addr, int n, bool write);
 
 unsigned char BCDByte(unsigned char n);
 

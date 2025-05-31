@@ -5,6 +5,7 @@
 #include <avr/wdt.h>
 #include <util/twi.h>
 #include <avr/interrupt.h>
+#include <stdbool.h>
 
 #include "Utils.h"
 
@@ -46,16 +47,16 @@ void EEPROM_read_string(unsigned int uiAddress, char *str, int n) {
 // handle the TWI interrupt. Note that the interrupt flag is not cleared by hardware and must be cleared manually in the interrupt routine
 ISR(TWI_vect) {
 	unsigned char controlCopy =  _BV(TWEN) | _BV(TWIE) | _BV(TWINT);	// clear the action bits and acknowledge ready for next thing
-	unsigned char TWI_status = TWSR & TW_STATUS_MASK;		// get the status without the prescaler bits
 	
-	switch(TWI_status) {
+	debugPulse();
+	
+	switch(TWSR & TW_STATUS_MASK) {
 		case TW_START :
-			TWDR = (TWI_address << 1) + (((TWI_flags & _BV(TWI_flag_writing)) !=0) ? TW_WRITE : TW_READ ); // Set the address and read write bit
+			TWDR = TWI_address;								// Set the address and read write bit
 			break;
 		case TW_MT_SLA_ACK:
 		case TW_MT_DATA_ACK:
 			if(TWI_index < TWI_datacount) TWDR = TWI_send_data[TWI_index++];
-			else controlCopy |= _BV(TWSTO);					// all finished, send stop
 			break;
 		case TW_MR_SLA_ACK:
 			if (TWI_datacount != 1) controlCopy |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
@@ -67,12 +68,13 @@ ISR(TWI_vect) {
 		case TW_MR_DATA_NACK:
 			TWI_read_data[TWI_index] = TWDR;					// get the last byte of data
 			controlCopy |= _BV(TWSTO);							// all finished, send stop
-			TWI_flags &= ~_BV(TWI_busy);
+			controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
 			break;
 		default:
-			controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error
+			controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error#
+			controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
 			TWI_flags |= _BV(TWI_flag_error);
-			TWI_flags &= ~_BV(TWI_busy);
+		break;
 	}
 	TWCR = controlCopy;									// This clears the interrupt and starts the next action
 }
@@ -82,28 +84,13 @@ void i2cInit() {
 	TWCR = _BV(TWEN);									// turn on the TWI
 }
 
-void i2cStart() {
+int i2cTransfer(unsigned char IIC_addr, int n, bool write) {
+//	if((TWCR & _BV(TWIE)) != 0) return 0;				// respond with -1 if a transaction is ongoing							
+	TWI_datacount = n;
+	TWI_index = 0;
+	TWI_address = (IIC_addr << 1) + (write !=0) ? TW_WRITE : TW_READ;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
-}
-
-int i2cWrite(unsigned char IIC_addr, int n) {
-//	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing			
-	TWI_flags = _BV(TWI_flag_writing) + _BV(TWI_busy);					
-	TWI_datacount = n;
-	TWI_index = 0;
-	TWI_address = IIC_addr;
-	i2cStart();											// initiate transfer by sending send start condition
-	return 0;
-}
-
-int i2cRead(unsigned char IIC_addr, int n) {
-	if((TWI_flags &= _BV(TWI_busy)) != 0) return -1;	// respond with -1 if a transaction is ongoing
-	TWI_flags = _BV(TWI_busy);
-	TWI_datacount = n;
-	TWI_index = 0;
-	TWI_address = IIC_addr;
-	i2cStart();											// initiate transfer by sending send start condition
-	return 0;
+	return 1;
 }
 
 //_______________________________________________________________________________________

@@ -10,6 +10,7 @@
 #include <string.h>
 #include <avr/pgmspace.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "14seg.h"
 #include "message.h"
@@ -140,7 +141,7 @@ void setup()
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
-		VL6180_Init();
+		break;
 	default:
 		break;
 	}
@@ -186,8 +187,6 @@ ISR(SPI_STC_vect)
 	PORTB |= _BV(RCLK);  								// set pin 0 of port B high
 	PORTB &= ~_BV(RCLK); 								// set pin 0 of port B low  // latch onto display
 	PORTC = (PORTC & ~0x07) | mem_ptr;					// Select the current digit
-	
-	debugPulse();	
 	
 	mem_ptr++;											// Point at next half digit	
 	if (mem_ptr > 0x07) mem_ptr = 0;					// Make sure memory pointer never exceeds array size
@@ -341,7 +340,7 @@ void doTest() {
 //	sendMsg(MSG_POLL, 0);
 	TWI_send_data[0] = 0x10;
 	TWI_send_data[1] = 0x34;
-	i2cWrite( 0xFC, 2 );
+	i2cTransfer( 0xFC, 2, true);
 	displayAndWait("SENT", 32, _BV(FLASH_F));
 }
 
@@ -433,8 +432,8 @@ void procesMenuItem() {
 		switch(unitType) {
 		case TYPE_CLOCK:
 			// if we are showing a temporary time then show the temp time
-			if ((clockFlags & _BV(flagTempDisplay)) == 0) showAnalogueTime(Current_time_hour, Current_time_min, _FALSE);
-			else  showAnalogueTime(Temp_time_hour, Temp_time_min, _TRUE);
+			if ((clockFlags & _BV(flagTempDisplay)) == 0) showAnalogueTime(Current_time_hour, Current_time_min, false);
+			else  showAnalogueTime(Temp_time_hour, Temp_time_min, true);
 			
 			if((menuLocal.flags & _BV(MENU_MENU)) == 0) {
 				if ((clockFlags & _BV(flagTempDisplay)) == 0) dispWriteTime(Current_time_hour, Current_time_min, dispMem); // only display time if we are not in a menu
@@ -549,7 +548,7 @@ int main (void)
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
-		if(menuItem == TYPE_RANGE) {	// only if not in menu - keypad conflicts with IIC
+		if(menuItem != MAX_TYPES) {	// only if not in menu - keypad conflicts with IIC
 			if(VL6180_Init() !=0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
 			flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
 			}
