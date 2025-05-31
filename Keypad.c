@@ -341,7 +341,7 @@ void doTest() {
 	TWI_send_data[0] = 0x10;
 	TWI_send_data[1] = 0x34;
 	i2cTransfer( 0xFC, 2, true);
-	displayAndWait("SENT", 32, _BV(FLASH_F));
+	displayAndWait("SENT", 64, _BV(FLASH_F));
 }
 
 //_______________________________________________________________________________________
@@ -521,6 +521,9 @@ void procesMenuItem() {
 					if((menuLocal.flags & _BV(MENU_BK)) != 0)	//step menu back
 					getMenuItem(--menuItem);
 					break;
+				case '4':
+					if(menuLocal.type == MENU_TYP_TEST) { doTest(); return; } // Enter a test routine
+					break;							
 				default:
 					break;
 				}
