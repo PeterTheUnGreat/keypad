@@ -338,10 +338,12 @@ void signalResetSource()
 // execute a test routine
 void doTest() {
 //	sendMsg(MSG_POLL, 0);
+	i2cInit();
+
 	TWI_send_data[0] = 0x10;
 	TWI_send_data[1] = 0x34;
-	i2cTransfer( 0xFC, 2, true);
-	displayAndWait("SENT", 64, _BV(FLASH_F));
+	displayDoubleAndWait(i2cTransfer( 0x12, 2, true), 64, _BV(FLASH_F));
+//	displayAndWait("SENT", 64, _BV(FLASH_F));
 }
 
 //_______________________________________________________________________________________

@@ -71,6 +71,7 @@ ISR(TWI_vect) {
 			controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
 			break;
 		default:
+			debugPulse();
 			controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error#
 			controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
 			TWI_flags |= _BV(TWI_flag_error);
@@ -80,7 +81,8 @@ ISR(TWI_vect) {
 }
 
 void i2cInit() {
-	TWBR = 0xFF;										// run the TWI as fast as it will go
+	TWBR = 0x80;										// run the TWI as slow as it will go
+	TWSR = 0x00;										// highest pre-scaler
 	TWCR = _BV(TWEN);									// turn on the TWI
 }
 
@@ -88,9 +90,9 @@ int i2cTransfer(unsigned char IIC_addr, int n, bool write) {
 //	if((TWCR & _BV(TWIE)) != 0) return 0;				// respond with -1 if a transaction is ongoing							
 	TWI_datacount = n;
 	TWI_index = 0;
-	TWI_address = (IIC_addr << 1) + (write) ? TW_WRITE : TW_READ;
+	TWI_address = (IIC_addr << 1); // + (write) ? TW_WRITE : TW_READ;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
-	return 1;
+	return TWI_address;
 }
 
 //_______________________________________________________________________________________
