@@ -90,7 +90,7 @@ int i2cTransfer(unsigned char IIC_addr, int n, bool write) {
 //	if((TWCR & _BV(TWIE)) != 0) return 0;				// respond with -1 if a transaction is ongoing							
 	TWI_datacount = n;
 	TWI_index = 0;
-	TWI_address = (IIC_addr << 1); // + (write) ? TW_WRITE : TW_READ;
+	TWI_address = (IIC_addr << 1) + write;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
 	return TWI_address;
 }
