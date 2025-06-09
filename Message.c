@@ -9,6 +9,8 @@
 #include "Utils.h"
 #include "Keypad.h"
 #include "14seg.h"
+#include "Compile.h"
+#include "IO.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
@@ -137,12 +139,6 @@ void sendMsg(char typ, char noOfBytes) {
 	setTransmit();
 }
 
-void sendDebugMsg(unsigned short n) {
-	txData[0] = n >> 8;
-	txData[1] = n & 0xFF;
-	sendMsg(MSG_ABOUT, 2);
-}
-
 //_______________________________________________________________________________________
 //Stuff to do with the reception of messages
 //_______________________________________________________________________________________
@@ -237,6 +233,10 @@ void checkMsgError() {
 */
 
 void checkMessage() {
+#ifdef  CODE_SECTION_CLOCK	
+	unsigned short hourRec, minRec;
+#endif /* CODE_SECTION_CLOCK */
+	
 	// only process if we have found a complete message
 	// Also do not process the message until we have waited for the short delay between receiving and transmitting
 	if((msgState != stateDone) || (nREDE_Holdoff != 0)) return;
@@ -244,6 +244,8 @@ void checkMessage() {
 	case MSG_POLL:
 		sendMsg(MSG_POLL, 0);
 		break;
+		
+#ifdef  CODE_SECTION_CLOCK
 	case MSG_SET_TIME:
 		cli();
 		Current_time_hour = BCDByte(msgData[0]);
@@ -254,22 +256,25 @@ void checkMessage() {
 		sendMsg(MSG_POLL, 0);
 		break;
 	case MSG_GO_TO_TIME:
-		// If the third byte of the temp time is 0 then cancel the temp time otherwise display for that many seconds (if 0xFF) then set with no timeout
-		Temp_time_hour = BCDByte(msgData[0]);
-		Temp_time_min = BCDByte(msgData[1]);
-		if(Temp_time_hour > 11) Temp_time_hour = 0;
-		if(Temp_time_min > 59) Temp_time_min = 0;
+		// Store a temporary time in the list
+		hourRec = BCDByte(msgData[0]);
+		minRec = BCDByte(msgData[1]);
+		if(hourRec > 11) hourRec = 0;
+		if(minRec > 59) minRec = 0;
 		
-		cli();
-		// assume 0x00 condition which clears timer and temporary display
-		clockFlags &= ~(_BV(flagTempDisplay) + _BV(flagTempTimer));
-		// If 0xFF then set to temp time indefinitely
-		if(msgData[2] == 0xFF) clockFlags |= _BV(flagTempDisplay);
-		else if(msgData[2] != 0x00)  { clockFlags |= _BV(flagTempDisplay) + _BV(flagTempTimer); tempTimeDelay = msgData[2] << 5; }	// 32 ticks is about 1 second
-		sei(); 
+		StoreTimeValue(hourRec, minRec, msgData[2]);
 		
 		sendMsg(MSG_POLL, 0);
 		break;
+#endif /* CODE_SECTION_CLOCK */
+
+#ifdef  CODE_SECTION_IO
+	case
+		recieveIOaction();
+		sendMsg(MSG_POLL, 0);
+		break;
+#endif /* CODE_SECTION_IO */		
+
 	case MSG_CODE:
 		EEPROM_write(EEPROM_CODE, (msgData[0] >> 4) + '0');
 		EEPROM_write(EEPROM_CODE + 1, (msgData[0] & 0x0F) + '0');	

@@ -11,12 +11,15 @@
 #include <avr/pgmspace.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <util/twi.h>
 
 #include "14seg.h"
 #include "message.h"
 #include "Utils.h"
 #include "Menu.h"
 #include "Range.h"
+#include "Compile.h"
+#include "IO.h"
 
 // This section bellow does all of the startup stuff
 void setup(void) __attribute__ ((naked)) __attribute__ ((section (".init5"))); // do the setup before main called
@@ -71,6 +74,7 @@ void initKeyInput(){
 	keyBufPtr	= 0;								// point at first key store location
 }
 
+#ifdef CODE_SECTION_CLOCK
 void initClock() {
 	DDRB |= motorAbits;								// set the motor output pins for stepper A as output
 	DDRD |= motorBbits;								// set the motor output pins for stepper B as output
@@ -103,10 +107,11 @@ void initClock() {
 	clockFlags = 0;									// make sure we start of displaying normal time
 	tempTimeDelay = 0;
 	
-	timeList = malloc( 15 * sizeof( struct timeValue));					// an array to hold time values
-	timeListptr = 0;
+	timeList = malloc( MAX_TIME_LIST * sizeof( struct timeValue));	// an array to hold time values
+	timeListPtrIn = 0;
+	timeListPtrOut = 0;
 }
-
+#endif /* CODE_SECTION_CLOCK */
 
 // called during .init5 after variables have been initialized
 void setup()
@@ -123,7 +128,14 @@ void setup()
 	
 	initDisplay();
 	initKeyInput();
+	
+#ifdef CODE_SECTION_DEBUG
 	initDebug();
+#endif /* CODE_SECTION_DEBUG */	
+#ifdef  CODE_SECTION_IO
+	initIO();
+#endif /* CODE_SECTION_IO */
+
 	initComms(EEPROM_read(EEPROM_RS485_ADDR));			// Start the RS485 comms with this units address read from EEPROM
 	unitType = EEPROM_read(EEPROM_TYPE);				// Get the type of this unit from EEPROM
 	if (unitType >= MAX_TYPES) unitType = TYPE_CLOCK;   // bit of a failsafe
@@ -133,7 +145,9 @@ void setup()
 	
 	switch(unitType) {
 	case TYPE_CLOCK:
+	#ifdef CODE_SECTION_CLOCK	
 		initClock();
+	#endif /* CODE_SECTION_CLOCK */
 		break;	
 	case TYPE_KEYPAD:
 		EEPROM_read_string(EEPROM_CODE, code, 4);		// get the code from EEPROM
@@ -141,6 +155,7 @@ void setup()
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
+		i2cInit();
 		break;
 	default:
 		break;
@@ -157,23 +172,6 @@ void start_interrupts()
 // Interrupt handlers
 //_______________________________________________________________________________________
 //
- 
-ISR(TIMER2_COMP_vect)									// handle timer 2 output compare interrupt
-{
-		// maintain the delay used to control the temp time if a timer is active
-		if((clockFlags & _BV(flagTempTimer)) != 0) {
-			if (--tempTimeDelay == 0) clockFlags &= ~(_BV(flagTempDisplay) + _BV(flagTempTimer));
-		}
-		
-		// Maintain the current time
-		if(++Current_time_tick >= TICK_MIN) {
-			Current_time_tick = 0;
-			if(++Current_time_min >= 60) {
-				Current_time_min = 0;
-				if(++Current_time_hour >= 12) Current_time_hour = 0;
-			}
-		}
-} 
 
 ISR(TIMER0_OVF_vect)									// handle timer 0 overflow
 {
@@ -237,6 +235,25 @@ ISR(SPI_STC_vect)
 	}
 }
 
+#ifdef CODE_SECTION_CLOCK
+
+ISR(TIMER2_COMP_vect)									// handle timer 2 output compare interrupt
+{
+	// maintain the delay used to control the temp time if a timer is active
+	if((tempTimeDelay !=0) && (tempTimeDelay !=0xFF)) {
+		if (--tempTimeDelay == 0) clockFlags &= ~_BV(flagTempDisplay);
+	}
+	
+	// Maintain the current time
+	if(++Current_time_tick >= TICK_MIN) {
+		Current_time_tick = 0;
+		if(++Current_time_min >= 60) {
+			Current_time_min = 0;
+			if(++Current_time_hour >= 12) Current_time_hour = 0;
+		}
+	}
+}
+
 ISR(TIMER1_COMPA_vect)									// handle timer 1 output compare A interrupt
 {
 	// turn stepper A if it should be moving
@@ -293,6 +310,8 @@ ISR(TIMER1_COMPA_vect)									// handle timer 1 output compare A interrupt
 	}
 }
 
+#endif /* CODE_SECTION_CLOCK */
+
 //_______________________________________________________________________________________
 // General stuff
 //_______________________________________________________________________________________
@@ -301,6 +320,9 @@ ISR(TIMER1_COMPA_vect)									// handle timer 1 output compare A interrupt
 void doMainStuff() {
 	processReceive();
 	checkMessage();
+#ifdef  CODE_SECTION_IO
+	doIO();
+#endif /* CODE_SECTION_IO */
 //	checkMsgError();	
 	wdt_reset();										// Kick the watchdog
 }
@@ -337,19 +359,15 @@ void signalResetSource()
 
 // execute a test routine
 void doTest() {
-//	sendMsg(MSG_POLL, 0);
-	i2cInit();
-
-	TWI_send_data[0] = 0x10;
-	TWI_send_data[1] = 0x34;
-	displayDoubleAndWait(i2cTransfer( 0x12, 2, true), 64, _BV(FLASH_F));
-//	displayAndWait("SENT", 64, _BV(FLASH_F));
+	displayAndWait("SENT", 64, _BV(FLASH_F));
 }
 
 //_______________________________________________________________________________________
 // Clock specific stuff
 //_______________________________________________________________________________________
 //
+
+#ifdef CODE_SECTION_CLOCK
 
 // Work out the motor positions to show the current time
 void showAnalogueTime(unsigned short hour, unsigned short min, int Obvious)
@@ -409,6 +427,41 @@ void zeroMotors() {
 	while(((motorFlags & _BV(M_FLAG_A_MOVING)) != 0) || ((motorFlags & _BV(M_FLAG_B_MOVING)) != 0)) wdt_reset(); // Kick the watchdog
 }
 
+void incTimeStorePtr( int *ptr) {
+	(*ptr)++;
+	if(*ptr == MAX_TIME_LIST) *ptr = 0;
+}
+
+void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char delayIn) {
+	timeList[timeListPtrIn].Hour = hourIn;
+	timeList[timeListPtrIn].Min = minIn;
+	timeList[timeListPtrIn].delay = delayIn;
+	incTimeStorePtr(&timeListPtrIn);
+	if(timeListPtrIn == timeListPtrOut) incTimeStorePtr(&timeListPtrOut); // If we have caught our tail then move the out pointer forward to bump one time value
+}
+
+void getTempTime() {
+	if(timeListPtrOut == timeListPtrIn) return;	// Nothing to see here officer
+	if((timeList[timeListPtrOut].delay != 0) && ((clockFlags & _BV(flagTempDisplay)) != 0)) return; // Allow current temp time to finish unless next action is cancel
+	cli();	// We are modifying a timer which is affected by interrupts
+	tempTimeDelay = timeList[timeListPtrOut].delay;
+	Temp_time_hour = timeList[timeListPtrOut].Hour;
+	Temp_time_min = timeList[timeListPtrOut].Min;
+	switch(timeList[timeListPtrOut].delay) {
+		case 0: 
+			clockFlags &= ~_BV(flagTempDisplay);	// if next in queue was instruction to cancel then do so
+		default:
+			tempTimeDelay <<= 5;					// 32 ticks is about 1 second
+		case 0xFF:
+			clockFlags |= _BV(flagTempDisplay);
+			break;
+	}
+	incTimeStorePtr(&timeListPtrOut);				// mark this one as processed
+	sei();
+}
+
+#endif /* CODE_SECTION_CLOCK */
+
 //_______________________________________________________________________________________
 // Main body
 //_______________________________________________________________________________________
@@ -423,7 +476,7 @@ void getMenuItem(int mi) {
 void procesMenuItem() {
 	char keyPress;
 	int	h,m;
-	unsigned short	dist;
+
 	char str[5] = "----";
 
 	while(1) {
@@ -433,29 +486,48 @@ void procesMenuItem() {
 		// Do unit specific tasks.
 		switch(unitType) {
 		case TYPE_CLOCK:
+		
+#ifdef CODE_SECTION_CLOCK
+			getTempTime();			// See if there is a temporary time to display
 			// if we are showing a temporary time then show the temp time
 			if ((clockFlags & _BV(flagTempDisplay)) == 0) showAnalogueTime(Current_time_hour, Current_time_min, false);
 			else  showAnalogueTime(Temp_time_hour, Temp_time_min, true);
-			
 			if((menuLocal.flags & _BV(MENU_MENU)) == 0) {
 				if ((clockFlags & _BV(flagTempDisplay)) == 0) dispWriteTime(Current_time_hour, Current_time_min, dispMem); // only display time if we are not in a menu
 				else dispWriteTime(Temp_time_hour, Temp_time_min, dispMem); 
 			}
+#endif /* CODE_SECTION_CLOCK */
+
 			break;
 		case TYPE_KEYPAD:
 			EEPROM_read_string(EEPROM_CODE, code, 4);		// get the code from EEPROM
 			break;
 		case TYPE_SAFE:
 			break;
+			
+
 		case TYPE_RANGE:
+#ifdef	CODE_SECTION_RANGE
 			if(menuItem == TYPE_RANGE) {	// only if not in menu - keypad conflicts with IIC
 				VL6180_Start_Range();					// start single range measurement
 				VL6180_Poll_Range();					// poll the VL6180 till new sample ready
-				dist = VL6180_Read_Range();				// read range result
+				unsigned short	dist = VL6180_Read_Range();	// read range result
 				VL6180_Clear_Interrupts();				// clear the interrupt on VL6180
-			
-				dispWriteDouble(dist, dispMem);			// display the distance read
+				
+				dispWriteDecByte(dist, 'm', dispMem);	// display the distance read
 			}
+#endif /* CODE_SECTION_RANGE */
+		TWI_send_data[0] = 0x0B;					// angle register
+
+			
+		i2cTransfer(0x36, 1, TW_WRITE);
+		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
+		i2cTransfer(0x36, 1, TW_READ);
+		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
+
+		dispWriteByte(TWI_read_data[0], dispMem);	// display the angle read
+		break;
+
 		default:
 			break;
 		}
@@ -546,17 +618,23 @@ int main (void)
 	// Do unit specific preparation
 	switch(unitType) {
 	case TYPE_CLOCK:
+#ifdef CODE_SECTION_CLOCK
 		zeroMotors();
+#endif /* CODE_SECTION_CLOCK */
+
 		break;
 	case TYPE_KEYPAD:
 		break;
 	case TYPE_SAFE:
 		break;
+#ifdef	CODE_SECTION_RANGE
 	case TYPE_RANGE:
 		if(menuItem != MAX_TYPES) {	// only if not in menu - keypad conflicts with IIC
 			if(VL6180_Init() !=0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
 			flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
 			}
+		break;
+#endif /* CODE_SECTION_RANGE */
 	default:
 		break;
 	}

@@ -3,9 +3,7 @@
 #ifndef 		KEYPAD_H_
 #define 		KEYPAD_H_
 
-
-#define SPL		_SFR_IO8(0x3D)
-#define SPH		_SFR_IO8(0x3E)    // Stack pointer low and high
+#include		"Compile.h"
 
 //_______________________________________________________________________________________
 // General timing constants
@@ -74,6 +72,7 @@ volatile int	keyBufPtr;			// point at first key store location
 //
 char code[5];
 
+#ifdef  CODE_SECTION_CLOCK
 //_______________________________________________________________________________________
 // Stuff to do with stepper motors
 //_______________________________________________________________________________________
@@ -117,6 +116,9 @@ volatile unsigned char motorFlags;
 // Stuff to do with clock
 //_______________________________________________________________________________________
 //
+
+void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char delayIn);
+
 struct timeValue {
 	unsigned short	Hour;
 	unsigned short	Min;
@@ -124,7 +126,10 @@ struct timeValue {
 	};
 
 struct timeValue *timeList;
-char			timeListptr;
+int			timeListPtrIn;
+int			timeListPtrOut;
+
+#define			MAX_TIME_LIST	10		// The most entries we can hold in the time list
 
 unsigned short	Current_time_min;
 unsigned short	Current_time_hour;
@@ -135,11 +140,11 @@ unsigned short	Temp_time_hour;
 
 volatile unsigned char	clockFlags;
 #define			flagTempDisplay		0	// Set if we are displaying a temporary time
-#define			flagTempTimer		1	// Set if we are doing a timer
 
 volatile unsigned int	tempTimeDelay;
 
 #define TICK_MIN	1875				// number of 32ms ticks in one minute
+#endif /* CODE_SECTION_CLOCK */
 
 //_______________________________________________________________________________________
 // EEPROM allocations

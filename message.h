@@ -15,8 +15,6 @@ void initComms();							// start the serial going and initialize buffer pointers
 void processReceive();						// process the next character in the receive buffer
 void checkMessage();						// poll the receive buffer for messages
 void sendMsg(char typ, char noOfBytes);		// Write message to the serial port
-void sendTestMsg(unsigned char c, char n);	// Just send n characters matching c
-void sendDebugMsg(unsigned short n);		// Send a double byte n
 //void checkMsgError();						// handle error
 //_______________________________________________________________________________________
 // definitions that USART
@@ -42,6 +40,7 @@ void sendDebugMsg(unsigned short n);		// Send a double byte n
 #define			MSG_ABOUT		'A'			// reply with info about device
 #define			MSG_CODE		'C'			// set the code to be entered
 #define			MSG_ERROR		'E'			// An error has occurred
+#define			MSG_IO			'I'			// Recieve an IO action to add to the table
 
 //_______________________________________________________________________________________
 //Stuff to do with all messages

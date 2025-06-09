@@ -1,6 +1,7 @@
 // utilities to handle 14 segment display
 
 #include "14seg.h"
+#include "Compile.h"
 #include <avr/pgmspace.h>
 
 // this byte table is stored in program memory
@@ -64,6 +65,8 @@ const uint16_t FourteenSegmentASCII[96] PROGMEM = {
 	0b010110100000000, /* X */
 	0b000000011101110, /* Y */
 	0b010010000001001, /* Z */
+	
+#ifdef CODE_SECTION_LOWER_CASE
 	0b000000000111001, /* [ */
 	0b000100100000000, /* \ */
 	0b000000000001111, /* ] */
@@ -101,12 +104,20 @@ const uint16_t FourteenSegmentASCII[96] PROGMEM = {
 	0b000110010001001, /* } */
 	0b010010011000000, /* ~ */
 	0b000000000000000, /* (del) */
+#endif	/* CODE_SECTION_LOWER_CASE */
 };
  
  
  // Write ASCII character c to digit d of display
 void dispWriteChar(char c, int d, unsigned char *buf)
 {
+	
+#ifdef CODE_SECTION_LOWER_CASE
+	if(c > 'Z') c = 0;								// all chars up to 'Z'
+#else
+	c &= 0x7F;										// all chars up to 127 (delete)
+#endif	/* CODE_SECTION_LOWER_CASE */
+
 	uint16_t fs = pgm_read_word(&FourteenSegmentASCII[c - 32]);	// Get the 14 segment representation of the ASCII character from program memory
 	buf[d * 2] = fs & 0x7F;							// Write low 7 bits into display memory
 	buf[(d * 2) + 1] = fs >> 7;						// Write upper 7 bits into display memory
@@ -142,6 +153,25 @@ void dispWriteByte(unsigned char n, unsigned char *buf)
 	dispWriteChar(getHEXASCII(n >> 4), 2, buf);					// write high nibble into first character
 	dispWriteChar(getHEXASCII(n & 0x0F), 3, buf);				// write low nibble into first character
 }
+
+
+#ifdef CODE_SECTION_RANGE
+// write byte to display (8 bits only)
+void dispWriteDecByte(unsigned char n, char Suffix, unsigned char *buf)
+{
+	int tens, hundreds;
+	
+	hundreds = n / 100;
+	n -= hundreds * 100;
+	tens = n / 10;
+	n -= tens * 10;
+	
+	dispWriteChar(Suffix, 3, buf);									// pad with spaces
+	dispWriteChar(getHEXASCII(hundreds), 0, buf);					// write hundreds
+	dispWriteChar(getHEXASCII(tens), 1, buf);					// write tens
+	dispWriteChar(getHEXASCII(n), 1, buf);					// write units
+}
+#endif /* CODE_SECTION_RANGE */
 
 // write double byte to display (16 bits)
 void dispWriteDouble(uint16_t n, unsigned char *buf)
