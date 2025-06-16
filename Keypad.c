@@ -450,6 +450,7 @@ void getTempTime() {
 	switch(timeList[timeListPtrOut].delay) {
 		case 0: 
 			clockFlags &= ~_BV(flagTempDisplay);	// if next in queue was instruction to cancel then do so
+			break;
 		default:
 			tempTimeDelay <<= 5;					// 32 ticks is about 1 second
 		case 0xFF:
