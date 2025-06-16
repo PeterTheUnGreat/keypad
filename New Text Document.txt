@@ -1,0 +1,26 @@
+
+write me a desktop application for linux which has a series of buttons (20) that send text messages over the serial port. both directions of traffic on the serial port should be shown in a box with different colours of text for sent and recieved text. the messages on the buttons should be configurable and the serial port settings should also be configurable.
+
+
+
+pre-recs for c:
+sudo apt-get install build-essential libgtk-3-dev
+
+build:
+gcc serial_buttons.c -o serial_buttons `pkg-config --cflags --libs gtk+-3.0` -pthread
+
+export PKG_CONFIG_PATH=/usr/lib/pkgconfig:/usr/share/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig
+
+gcc but2.c -o but2 \
+  -I/usr/include/gtk-3.0 \
+  -I/usr/include/glib-2.0 \
+  -I/usr/lib/aarch64-linux-gnu/glib-2.0/include \
+  -I/usr/include/pango-1.0 \
+  -I/usr/include/harfbuzz \
+  -I/usr/include/cairo \
+  -I/usr/include/gdk-pixbuf-2.0 \
+  -I/usr/include/atk-1.0 \
+  -lgtk-3 -lgobject-2.0 -lglib-2.0 -lpthread
+      |                     
+
+gtk_text_buffer_get_iter_at_mark: assertion 'GTK_IS_TEXT_MARK (mark)' failed

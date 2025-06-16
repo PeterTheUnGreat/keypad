@@ -122,7 +122,7 @@ void setup()
 	
 	wdt_enable(WDTO_2S);								// turn on watchdog and enable change of the prescaler (must be done within 4 clock cycles
 	
-	OSCCAL = 0xB8;										// trim the internal oscillator to get timing accurate
+//	OSCCAL = 0xB8;										// trim the internal oscillator to get timing accurate
 	
 	flags = 0;											// set all flags to 0 to start with
 	
@@ -155,7 +155,6 @@ void setup()
 	case TYPE_SAFE:
 		break;
 	case TYPE_RANGE:
-		i2cInit();
 		break;
 	default:
 		break;
@@ -359,6 +358,7 @@ void signalResetSource()
 
 // execute a test routine
 void doTest() {
+	sendMsg('P', 0);									// Write message to the serial port
 	displayAndWait("SENT", 64, _BV(FLASH_F));
 }
 
@@ -517,17 +517,6 @@ void procesMenuItem() {
 				dispWriteDecByte(dist, 'm', dispMem);	// display the distance read
 			}
 #endif /* CODE_SECTION_RANGE */
-		TWI_send_data[0] = 0x0B;					// angle register
-
-			
-		i2cTransfer(0x36, 1, TW_WRITE);
-		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
-		i2cTransfer(0x36, 1, TW_READ);
-		while((TWCR & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
-
-		dispWriteByte(TWI_read_data[0], dispMem);	// display the angle read
-		break;
-
 		default:
 			break;
 		}
