@@ -433,6 +433,11 @@ void incTimeStorePtr( int *ptr) {
 }
 
 void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char delayIn) {
+	if(delayIn == 0) {						// special case if delay is 0 - cancel current delay time
+		clockFlags &= ~_BV(flagTempDisplay);
+		return;
+	}
+	
 	timeList[timeListPtrIn].Hour = hourIn;
 	timeList[timeListPtrIn].Min = minIn;
 	timeList[timeListPtrIn].delay = delayIn;
@@ -442,21 +447,13 @@ void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char d
 
 void getTempTime() {
 	if(timeListPtrOut == timeListPtrIn) return;	// Nothing to see here officer
-	if((timeList[timeListPtrOut].delay != 0) && ((clockFlags & _BV(flagTempDisplay)) != 0)) return; // Allow current temp time to finish unless next action is cancel
+	if((clockFlags & _BV(flagTempDisplay) != 0)) return; // Allow current temp time to finish
 	cli();	// We are modifying a timer which is affected by interrupts
 	tempTimeDelay = timeList[timeListPtrOut].delay;
 	Temp_time_hour = timeList[timeListPtrOut].Hour;
 	Temp_time_min = timeList[timeListPtrOut].Min;
-	switch(timeList[timeListPtrOut].delay) {
-		case 0: 
-			clockFlags &= ~_BV(flagTempDisplay);	// if next in queue was instruction to cancel then do so
-			break;
-		default:
-			tempTimeDelay <<= 5;					// 32 ticks is about 1 second
-		case 0xFF:
-			clockFlags |= _BV(flagTempDisplay);
-			break;
-	}
+	if (timeList[timeListPtrOut].delay != 0xFF) tempTimeDelay <<= 5; // 32 ticks is about 1 second
+	clockFlags |= _BV(flagTempDisplay);
 	incTimeStorePtr(&timeListPtrOut);				// mark this one as processed
 	sei();
 }
