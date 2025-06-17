@@ -191,7 +191,7 @@ void processReceive() {
 		msgState = stateAddress;
 		break;
 	case stateAddress:
-		if(msgTemp != msgAddr) return;					 // This message is not for us
+		if((msgTemp != msgAddr) && (msgTemp != UNIVERSAL_ADDRESS)) return;					 // This message is not for us
 		if(msgType == MSG_POLL) msgState = stateEnd;
 		else { msgState = stateLength; msg_flags |= _BV(MSG_DIGIT_ONE); }
 		break;
@@ -285,6 +285,9 @@ void checkMessage() {
 	case MSG_ABOUT:
 		txData[0] = unitType;
 		sendMsg(MSG_ABOUT, 1);					// Send an about message with one byte of data
+		break;
+	case MSG_RESET:
+		while(1);								// force a watchdog reset
 		break;
 	}
 	msgState = stateStart;											// Prepare to receive the next message

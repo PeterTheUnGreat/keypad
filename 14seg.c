@@ -146,10 +146,10 @@ void dispWriteTime(unsigned char hour, unsigned char minute, unsigned char *buf)
 }
 
 // write byte to display (8 bits only)
-void dispWriteByte(unsigned char n, unsigned char *buf)
+void dispWriteByte(unsigned char n, unsigned char *buf, char firstChr, char secondChr)
 {
-	dispWriteChar('0', 0, buf);										// pad with spaces
-	dispWriteChar('x', 1, buf);
+	dispWriteChar(firstChr, 0, buf);										// pad with spaces
+	dispWriteChar(secondChr, 1, buf);
 	dispWriteChar(getHEXASCII(n >> 4), 2, buf);					// write high nibble into first character
 	dispWriteChar(getHEXASCII(n & 0x0F), 3, buf);				// write low nibble into first character
 }

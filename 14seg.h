@@ -11,7 +11,7 @@ void dispWriteChar(char c, int d, unsigned char *buf);
 void dispWriteStr(const char *s, unsigned char *buf);
 
 // write byte to display (8 bits only)
-void dispWriteByte(unsigned char n, unsigned char *buf);
+void dispWriteByte(unsigned char n, unsigned char *buf, char firstChr, char secondChr);
 
 #ifdef  CODE_SECTION_RANGE
 // write decimal byte to display with suffix

@@ -326,34 +326,40 @@ void doMainStuff() {
 	wdt_reset();										// Kick the watchdog
 }
 
-void displayAndWait(char* str, int t, unsigned char flg) {
-
-	dispWriteStr( str, dispMem);						// display the given string
+void displayAndWaitCore(int t, unsigned char flg) {
 	flags = flg;
 	holdOff = t;
-	while(holdOff != 0) doMainStuff();					// Wait while maintaining things that need to be maintained
+	while(holdOff != 0) doMainStuff();	// Wait while maintaining things that need to be maintained
+}
+
+void displayAndWait(char* str, int t, unsigned char flg) {
+	dispWriteStr( str, dispMem);						// display the given string
+	displayAndWaitCore(t, flg);
 }
 
 void displayDoubleAndWait(unsigned short n, int t, unsigned char flg) {
-
 	dispWriteDouble( n, dispMem);						// display the given string
-	flags = flg;
-	holdOff = t;
-	while(holdOff != 0) doMainStuff();					// Wait while maintaining things that need to be maintained
+	displayAndWaitCore(t, flg);
+}
+
+void displayByteAndWait(unsigned char n, int t, unsigned char flg, char firstChar, char secondChar) {
+	dispWriteByte( n, dispMem, firstChar, secondChar);						// display the given string
+	displayAndWaitCore(t, flg);
 }
 
 // find and display the source of reset
 void signalResetSource()
 {
-	char str[4];
+	char chr;
 	
 	unsigned char source = MCUCSR;						// get the reset source
 	MCUCSR = 0;											// clear reset sources
-	if (source & _BV(WDRF)) strcpy(str, "WDOG");
-	if (source & _BV(BORF)) strcpy(str, "BOUT");
-	if (source & _BV(EXTRF)) { strcpy(str, "EXT "); menuItem = MAX_TYPES;} // Set to enter setup menu after external reset
-	if (source & _BV(PORF)) strcpy(str, "PWR ");		// this one last because power on also sets brownout
-	displayAndWait(str,64, _BV(FLASH_F));				// Display a message for a given time and block
+	if (source & _BV(WDRF)) chr = 'W';
+	if (source & _BV(BORF)) chr = 'B';
+	if (source & _BV(EXTRF)) {  chr = 'E'; menuItem = MAX_TYPES;} // Set to enter setup menu after external reset
+	if (source & _BV(PORF))  chr = 'P';		// this one last because power on also sets brownout
+	
+	displayByteAndWait(msgAddr, 64, _BV(FLASH_F), chr, '-');				// Display a message for a given time and block
 }
 
 // execute a test routine
@@ -447,7 +453,7 @@ void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char d
 
 void getTempTime() {
 	if(timeListPtrOut == timeListPtrIn) return;	// Nothing to see here officer
-	if((clockFlags & _BV(flagTempDisplay) != 0)) return; // Allow current temp time to finish
+	if(((clockFlags & _BV(flagTempDisplay)) != 0)) return; // Allow current temp time to finish
 	cli();	// We are modifying a timer which is affected by interrupts
 	tempTimeDelay = timeList[timeListPtrOut].delay;
 	Temp_time_hour = timeList[timeListPtrOut].Hour;

@@ -41,12 +41,15 @@ void sendMsg(char typ, char noOfBytes);		// Write message to the serial port
 #define			MSG_CODE		'C'			// set the code to be entered
 #define			MSG_ERROR		'E'			// An error has occurred
 #define			MSG_IO			'I'			// Recieve an IO action to add to the table
+#define			MSG_RESET		'X'			// Force a watchdog reset
 
 //_______________________________________________________________________________________
 //Stuff to do with all messages
 //_______________________________________________________________________________________
 //
 int				msgAddr;					// This is the address of this unit
+
+#define			UNIVERSAL_ADDRESS 0xFF		// an address that all units need to respond to
 
 volatile unsigned char	nREDE_Holdoff;		// Counter to make delay between recieving and transmitting messages to allow nREDE of master to change over
 
