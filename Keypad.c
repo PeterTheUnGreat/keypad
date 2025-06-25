@@ -29,7 +29,7 @@ void start_interrupts(void) __attribute__ ((naked)) __attribute__ ((section (".i
 const menuStruct menuItems[] PROGMEM = {
     // Item Name, Digits, Type, EEPROM address, Flags
     { "TIME", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for clock - no keypad entry
-    { "----", 4, MENU_TYP_CODE, 0, _BV(MENU_NUM) + _BV(MNEU_ENTRY) },	// menu entry for safe - keypad entry allowed
+    { "    ", 4, MENU_TYP_CODE, 0, _BV(MENU_NUM) + _BV(MNEU_ENTRY) },	// menu entry for safe - keypad entry allowed
     { "SAFE", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for safe - no keypad entry
     { "DIST", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for range - no keypad entry
 
@@ -160,6 +160,9 @@ void setup() {
     default:
         break;
     }
+
+    DDRD |= _BV(PD7);
+    PORTD &= ~_BV(PD7);
 }
 
 // called during .init8
@@ -587,7 +590,9 @@ void procesMenuItem() {
                 return;
             case MENU_TYP_CODE:
                 if (strcmp(str, code) == 0) {
+                    PORTD |= _BV(PD7);
                     displayAndWait("+OK+", 64, 0);
+                    PORTD &= ~_BV(PD7);
                     statusFlags |= _BV(STAT_UNLOCKED);
                 } else {
                     displayAndWait("FAIL", 64, _BV(FLASH_F));
