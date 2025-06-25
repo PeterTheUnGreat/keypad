@@ -591,7 +591,7 @@ void procesMenuItem() {
             case MENU_TYP_CODE:
                 if (strcmp(str, code) == 0) {
                     PORTD |= _BV(PD7);
-                    displayAndWait("+OK+", 64, 0);
+                    displayAndWait("+OK+", 128, 0);
                     PORTD &= ~_BV(PD7);
                     statusFlags |= _BV(STAT_UNLOCKED);
                 } else {
