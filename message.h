@@ -40,7 +40,7 @@ void sendMsg(char typ, char noOfBytes);		// Write message to the serial port
 #define			MSG_ABOUT		'A'			// reply with info about device
 #define			MSG_CODE		'C'			// set the code to be entered
 #define			MSG_ERROR		'E'			// An error has occurred
-#define			MSG_IO			'I'			// Recieve an IO action to add to the table
+#define			MSG_IO			'I'			// Receive an IO message
 #define			MSG_RESET		'X'			// Force a watchdog reset
 
 //_______________________________________________________________________________________

@@ -13,7 +13,7 @@
 
 GtkWidget *text_view;
 GtkWidget *buttons[NUM_BUTTONS];
-char *button_messages[NUM_BUTTONS];
+char *button_messages[NUM_BUTTONS][2];
 char serial_port[256] = "/dev/ttyUSB0";
 char tempStr [256];
 speed_t baud_rate = B9600;
@@ -87,19 +87,19 @@ void on_button_right_click(GtkWidget *widget, GdkEventButton *event, gpointer da
 				NULL);
 			GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 			GtkWidget *entry = gtk_entry_new();
-			gtk_entry_set_text(GTK_ENTRY(entry), button_messages[index]);
+			gtk_entry_set_text(GTK_ENTRY(entry), button_messages[index][1]);
 			gtk_box_pack_start(GTK_BOX(content), entry, FALSE, FALSE, 5);
 			gtk_widget_show_all(dialog);
 			if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
 				const char *new_label = gtk_entry_get_text(GTK_ENTRY(entry));
-				free(button_messages[index]);
-				button_messages[index] = strdup(new_label);
-				gtk_button_set_label(GTK_BUTTON(buttons[index]), new_label);
+				free(button_messages[index][1]);
+				button_messages[index][1] = strdup(new_label);
+//				gtk_button_set_label(GTK_BUTTON(buttons[index]), new_label);
 			}
 			gtk_widget_destroy(dialog);
 			break;
 		case 1:
-			send_serial_message(button_messages[index]);
+			send_serial_message(button_messages[index][1]);
 			break;
 		default:
 			break;
@@ -155,9 +155,11 @@ void load_config() {
     char line[512];
     for (int i = 0; i < NUM_BUTTONS && fgets(line, sizeof(line), fp); ++i) {
         line[strcspn(line, "\n\r")] = 0;
-        free(button_messages[i]);
-        button_messages[i] = strdup(line);
-        gtk_button_set_label(GTK_BUTTON(buttons[i]), line);
+		
+        free(button_messages[i][0]);
+        button_messages[i][0] = strdup(strtok(line, ","));
+	    button_messages[i][1] = strdup(strtok(NULL, ","));	
+        gtk_button_set_label(GTK_BUTTON(buttons[i]), button_messages[i][0]);
     }
     fclose(fp);
 }
@@ -171,7 +173,7 @@ void save_config() {
     FILE *fp = fopen(CONFIG_FILE, "w");
     if (!fp) return;
     for (int i = 0; i < NUM_BUTTONS; ++i) {
-        fprintf(fp, "%s\n", button_messages[i]);
+        fprintf(fp, "%s,%s\n", button_messages[i][0], button_messages[i][1]);
     }
     fclose(fp);
     log_message("Configuration saved.", "black");
@@ -267,7 +269,8 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < NUM_BUTTONS; ++i) {
         buttons[i] = gtk_button_new_with_label("Message");
-        button_messages[i] = strdup("Message");
+        button_messages[i][0] = strdup("Empty");
+        button_messages[i][1] = strdup("Empty");		
 //        g_signal_connect(buttons[i], "clicked", G_CALLBACK(on_button_clicked), GINT_TO_POINTER(i));
         g_signal_connect(buttons[i], "button-press-event", G_CALLBACK(on_button_right_click), GINT_TO_POINTER(i));
         gtk_grid_attach(GTK_GRID(grid), buttons[i], i % 5, i / 5, 1, 1);

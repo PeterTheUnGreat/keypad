@@ -5,7 +5,7 @@ rm a.out
 rm test.hex
 
 echo "Compiling code"
-avr-gcc -Os -mmcu=atmega8 -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c
+avr-gcc -Os -mmcu=atmega8 -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c io.c
 
 echo "Converting code to intel HEX"
 avr-objcopy -O ihex a.out test.hex

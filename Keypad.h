@@ -39,6 +39,9 @@ unsigned char	unitType;					// This holds a number to indicate what type of boar
 #define			TYPE_SAFE		2
 #define			TYPE_RANGE		3
 
+volatile unsigned char statusFlags;
+#define			STAT_UNLOCKED	0			// Flag to indicate correct code entered
+
 //_______________________________________________________________________________________
 // Display stuff
 //_______________________________________________________________________________________
@@ -87,7 +90,7 @@ char code[5];
 #define			MBZ				4		// Input from motor B zero sensor PB4
 
 #define			MAX_STEP		7		// largest index into step table
-	
+
 unsigned char	motorAstep;				// value to hold which step we are on on motor A
 unsigned char	motorBstep;				// value to hold which step we are on on motor B
 
@@ -120,10 +123,10 @@ volatile unsigned char motorFlags;
 void StoreTimeValue(unsigned short	hourIn, unsigned short	minIn, unsigned char delayIn);
 
 struct timeValue {
-	unsigned short	Hour;
-	unsigned short	Min;
-	unsigned char	delay;
-	};
+    unsigned short	Hour;
+    unsigned short	Min;
+    unsigned char	delay;
+};
 
 struct timeValue *timeList;
 int			timeListPtrIn;
@@ -154,6 +157,15 @@ volatile unsigned int	tempTimeDelay;
 #define			EEPROM_RS485_ADDR	1		// the address of this device on RS485
 #define			EEPROM_CODE			2		// the code to guess (4 bytes)
 #define			EEPROM_TIME			6		// store the current time (2 bytes)
+#define			EEPROM_DDRB			7		// starting state for DDRB
+#define			EEPROM_DDRD			8		// starting state for DDRD
+#define			EEPROM_TRIG_COUNT	9		// number of trigger entries in table
+#define			EEPROM_B_DEFAULT	10		// starting state for portB
+#define			EEPROM_D_DEFAULT	11		// starting state for portD
+
+#define			EEPROM_TRIG			0x100	// storage for trigger events
+//				EEPROM_TRIG_END		0x1FF	// Allocate 256 bytes
+
 //_______________________________________________________________________________________
 
 #endif 							/* KEYPAD_H_ */

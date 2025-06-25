@@ -1,20 +1,20 @@
-%P00#
-%A00#
-%S0002111600#
-%S0002115900#
-%S0002014500#
-%T00030730FF00#
-%T000307300000#
-%T000310050400#
-%T000307020500#
-%T000303450100#
-%X000000#
-%A000000#
-%XFF0000#
-%X010000#
-%AFF0000#
-%A450000#
-Message
-Message
-Message
-Message
+Poll,%PE9#
+Status,%AE90000#
+WDOG,%XE90000#
+IO read,%IE9010300#
+IO DDRs,%IE90501FF00000000#
+IO PB1 1,%IE90502FF00FF0000#
+IO PB1 0,%IE90502FF00000000#
+IO reset,%IE9010000#
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+~,nothing
+Trigger,%IE907040200000001AE00#

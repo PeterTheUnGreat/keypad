@@ -269,9 +269,8 @@ void checkMessage() {
 #endif /* CODE_SECTION_CLOCK */
 
 #ifdef  CODE_SECTION_IO
-	case
-		recieveIOaction();
-		sendMsg(MSG_POLL, 0);
+	case MSG_IO:
+		if(recieveIOaction(msgDataBytes, msgData)) sendMsg(MSG_POLL, 0); // send a poll message if the IO message is formatted correctly
 		break;
 #endif /* CODE_SECTION_IO */		
 
@@ -284,7 +283,8 @@ void checkMessage() {
 		break;
 	case MSG_ABOUT:
 		txData[0] = unitType;
-		sendMsg(MSG_ABOUT, 1);					// Send an about message with one byte of data
+		txData[1] = statusFlags;
+		sendMsg(MSG_ABOUT, 2);					// Send an about message with two bytes of data, unit type and status flags
 		break;
 	case MSG_RESET:
 		while(1);								// force a watchdog reset

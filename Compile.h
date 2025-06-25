@@ -3,7 +3,7 @@
  *
  * Created: 04/06/2025 13:58:32
  *  Author: peter
- */ 
+ */
 
 
 #ifndef COMPILE_H_
@@ -14,9 +14,9 @@
 //#define		CODE_SECTION_DEBUG
 #define		CODE_SECTION_IIC
 #define		CODE_SECTION_LOWER_CASE
-#define		CODE_SECTION_CLOCK
+//#define		CODE_SECTION_CLOCK
 //#define		CODE_SECTION_RANGE
-//#define		CODE_SECTION_IO
+#define		CODE_SECTION_IO
 
 
 #endif /* COMPILE_H_ */
