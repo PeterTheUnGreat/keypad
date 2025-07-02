@@ -3,7 +3,7 @@
  *
  * Created: 26/03/2025 18:12:55
  *  Author: peter
- */ 
+ */
 
 
 #ifndef UTILS_H_
@@ -33,7 +33,7 @@ volatile int	TWI_index;
 unsigned char	TWI_send_data[TWI_max_data];	// store for TWI data
 volatile unsigned char	TWI_read_data[TWI_max_data];	// store for TWI data
 
-#endif /* CODE_SECTION_IIC */	
+#endif /* CODE_SECTION_IIC */
 
 //_______________________________________________________________________________________
 
@@ -49,11 +49,17 @@ unsigned char BCDByte(unsigned char n);
 
 
 #ifdef CODE_SECTION_DEBUG
+
+#define		DBG_OUT		3									// PD3 
+#define		DBG_TRIG	4									// PD4
+
+
 void initDebug();
-void debugOn();			
-void debugOff();			
+void debugOn();
+void debugOff();
 void debugToggle();
 void debugPulse();
+void debugTrigPulse();
 #endif /* CODE_SECTION_DEBUG */
 
 #endif /* UTILS_H_ */

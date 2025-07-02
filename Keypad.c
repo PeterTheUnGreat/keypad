@@ -13,12 +13,12 @@
 #include <stdbool.h>
 #include <util/twi.h>
 
+#include "Compile.h"
 #include "14seg.h"
 #include "message.h"
 #include "Utils.h"
 #include "Menu.h"
 #include "Range.h"
-#include "Compile.h"
 #include "IO.h"
 
 // This section bellow does all of the startup stuff
@@ -587,11 +587,12 @@ void procesMenuItem() {
                 return;
             case MENU_TYP_CODE:
                 if (strcmp(str, code) == 0) {
-                    displayAndWait("+OK+", 64, 0);
                     statusFlags |= _BV(STAT_UNLOCKED);
+                    displayAndWait("+OK+", 64, 0);
+
                 } else {
-                    displayAndWait("FAIL", 64, _BV(FLASH_F));
                     statusFlags &= ~_BV(STAT_UNLOCKED);
+                    displayAndWait("FAIL", 64, _BV(FLASH_F));
                 }
                 return;
             default:
@@ -636,6 +637,29 @@ void procesMenuItem() {
                     break;
                 }
             } else if((menuLocal.flags & _BV(MNEU_ENTRY)) != 0) {
+                switch (keyPress) {
+                case '7':
+                    statusFlags |= _BV(STAT_TRIG_1);
+                    break;
+                case '4':
+                    statusFlags &= ~_BV(STAT_TRIG_1);
+                    break;
+                case '8':
+                    statusFlags |= _BV(STAT_TRIG_2);
+                    break;
+                case '5':
+                    statusFlags &= ~_BV(STAT_TRIG_2);
+                    break;
+                case '9':
+                    statusFlags |= _BV(STAT_TRIG_3);
+                    break;
+                case '6':
+                    statusFlags &= ~_BV(STAT_TRIG_3);
+                    break;
+                default:
+                    break;
+                }
+
                 // else in entry mode get key and add to number
                 str[4 - menuLocal.digits--] = keyPress;				// put the key value in the code
                 dispWriteStr(str, dispMem);

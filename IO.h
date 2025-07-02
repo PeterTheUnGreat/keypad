@@ -64,7 +64,13 @@ int		trigCount;						// number of triggers we have
 #define		IO_MSG_TRIG			4		// 04 - Set trigger (7 bytes) BBDD (output) BBDDSS (source) FF (flags)
 
 #define		IO_MSK_B			0xD6	// PortB PB1, PB2, PB4, PB6, PB7
+
+
+#ifdef		CODE_SECTION_DEBUG
+#define		IO_MSK_D			0xE0	// PortD PD5-PD7 (PD6 and PD7 high current open drain) PD3 and PD4 used by debug
+#else
 #define		IO_MSK_D			0xF8	// PortD PD3-PD7 (PD6 and PD7 high current open drain)
+#endif		/*CODE_SECTION_DEBUG*/
 
 #endif /*CODE_SECTION_IO*/
 #endif /* IO_H_ */

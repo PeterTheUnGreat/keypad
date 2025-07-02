@@ -15,6 +15,6 @@ IO reset,%IE9010000#
 ~,nothing
 ~,nothing
 ~,nothing
-~,nothing
-~,nothing
-Trigger,%IE907040200000001AE00#
+~,%IE9070402000000018900#
+~,%IE9070404000000018B00#
+Trigger,%IE9070402000000018A00#

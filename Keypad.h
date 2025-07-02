@@ -3,8 +3,6 @@
 #ifndef 		KEYPAD_H_
 #define 		KEYPAD_H_
 
-#include		"Compile.h"
-
 //_______________________________________________________________________________________
 // General timing constants
 //_______________________________________________________________________________________
@@ -41,6 +39,9 @@ unsigned char	unitType;					// This holds a number to indicate what type of boar
 
 volatile unsigned char statusFlags;
 #define			STAT_UNLOCKED	0			// Flag to indicate correct code entered
+#define			STAT_TRIG_1		1
+#define			STAT_TRIG_2		2
+#define			STAT_TRIG_3		3
 
 //_______________________________________________________________________________________
 // Display stuff

@@ -11,7 +11,7 @@
 
 // This selects what parts of the code will be included for compilation
 
-//#define		CODE_SECTION_DEBUG
+#define		CODE_SECTION_DEBUG
 #define		CODE_SECTION_IIC
 #define		CODE_SECTION_LOWER_CASE
 //#define		CODE_SECTION_CLOCK

@@ -8,6 +8,7 @@
 #include <avr/io.h>
 
 #include "Compile.h"
+#include "14seg.h"
 #include "Utils.h"
 #include "Keypad.h"
 #include "message.h"
@@ -30,16 +31,16 @@ void initIO() {
 
     for(int n = 0; n < trigCount; n++) {				// read in all of the triggers into the trigger array
         EEPROMpointer = (n << 3) + EEPROM_TRIG;	// give 8 bytes for each trigger
-        triggers[trigCount].outB = EEPROM_read(EEPROMpointer++);
-        triggers[trigCount].outD = EEPROM_read(EEPROMpointer++);
-        triggers[trigCount].inB = EEPROM_read(EEPROMpointer++);
-        triggers[trigCount].inD = EEPROM_read(EEPROMpointer++);
-        triggers[trigCount].statusIn = EEPROM_read(EEPROMpointer++);
+        triggers[n].outB = EEPROM_read(EEPROMpointer++);
+        triggers[n].outD = EEPROM_read(EEPROMpointer++);
+        triggers[n].inB = EEPROM_read(EEPROMpointer++);
+        triggers[n].inD = EEPROM_read(EEPROMpointer++);
+        triggers[n].statusIn = EEPROM_read(EEPROMpointer++);
         flagsIn = EEPROM_read(EEPROMpointer++);
 
-        triggers[trigCount].flags = flagsIn & 0x0F;			// incoming flags only in lower 4 bits
-        triggers[trigCount].timerValue = (flagsIn & 0xF0) >> 1;	// incoming timer in upper nibble. which should make the incoming timer approx 1/10s of a second
-        triggers[trigCount].timerActive = 0;
+        triggers[n].flags = flagsIn & 0x0F;			// incoming flags only in lower 4 bits
+        triggers[n].timerValue = flagsIn & 0xF0;	// incoming timer in upper nibble. which should make the incoming timer approx 1/4s of a second
+        triggers[n].timerActive = 0;
     }
 
     DDRB = (DDRB & ~IO_MSK_B) | EEPROM_read(EEPROM_DDRB);		// read the EEPROM copies
@@ -60,11 +61,12 @@ void initIO() {
 void resetIO() {
     // set unused pins to inputs
     DDRD &=	~IO_MSK_D;
-    DDRB &=	~IO_MSK_B;
+    DDRB &=	~(IO_MSK_B - _BV(PB2)); // Set this to stop irritating display blanking if SS is set to input
+    trigCount = 0;
 
     EEPROM_write(EEPROM_DDRB, 0);					// reset the EEPROM copies to all inputs
     EEPROM_write(EEPROM_DDRD, 0);
-    EEPROM_write(EEPROM_TRIG_COUNT, 0);				// delete trigger count table
+    EEPROM_write(EEPROM_TRIG_COUNT, trigCount);		// delete trigger count table
 }
 
 //_______________________________________________________________________________________
@@ -73,6 +75,7 @@ void resetIO() {
 //
 void setDDRD(unsigned char portBDDR, unsigned char portDDDR, unsigned char portBdefault, unsigned char portDdefault) {
     portBDDR &= IO_MSK_B;		// remove any unwanted bits
+    portBDDR |= _BV(PB2);		// Set this to stop irritating display blanking if SS is set to input
     portBdefault &= IO_MSK_B;
     portDDDR &= IO_MSK_D;
     portDdefault &= IO_MSK_D;
@@ -107,14 +110,14 @@ void setOutput(unsigned char portBmask, unsigned char portDmask, unsigned char p
 //_______________________________________________________________________________________
 //
 int IOsetTrig(unsigned char portBout, unsigned char portDout, unsigned char portBin, unsigned char portDin, unsigned char statusIn, unsigned char flagsIn) {
-    if(trigCount == TRIG_MAX) return false;		// we are full
+    if(trigCount >= TRIG_MAX) return false;		// we are full
     triggers[trigCount].outB = portBout & IO_MSK_B;
     triggers[trigCount].outD = portDout & IO_MSK_D;
     triggers[trigCount].inB = portBin & IO_MSK_B;
     triggers[trigCount].inD = portDin & IO_MSK_D;
     triggers[trigCount].statusIn = statusIn;
     triggers[trigCount].flags = flagsIn & 0x0F;			// incoming flags only in lower 4 bits
-    triggers[trigCount].timerValue = (flagsIn & 0xF0) >> 1;	// incoming timer in upper nibble. which should make the incoming timer approx 1/10s of a second
+    triggers[trigCount].timerValue = flagsIn & 0xF0;	// incoming timer in upper nibble. which should make the incoming timer approx 1/4s of a second
     triggers[trigCount].timerActive = 0;
 
     int EEPROMpointer = (trigCount << 3) + EEPROM_TRIG;	// give 8 bytes fro each trigger
@@ -124,8 +127,6 @@ int IOsetTrig(unsigned char portBout, unsigned char portDout, unsigned char port
     EEPROM_write(EEPROMpointer++, portDin & IO_MSK_D);
     EEPROM_write(EEPROMpointer++, statusIn);
     EEPROM_write(EEPROMpointer++, flagsIn);
-
-    EEPROM_write(EEPROM_TRIG_COUNT, trigCount);
 
     trigCount++;
     EEPROM_write(EEPROM_TRIG_COUNT, trigCount);
@@ -144,6 +145,16 @@ void IOreadInputs() {
     sendMsg(MSG_IO, 3);					// Write message to the serial port
 }
 
+void actionBits(struct Trigger *t, int f) {
+    if(f) {
+        PORTB |= t->outB;
+        PORTD |= t->outD;
+    } else {
+        PORTB &= ~t->outB;
+        PORTD &= ~t->outD;
+    }
+}
+
 //_______________________________________________________________________________________
 // Cycle through all of the IO triggers and act on them
 //_______________________________________________________________________________________
@@ -158,57 +169,32 @@ void doIO() {
     unsigned char statusChanged = statusCopy ^ statusPrevious;
     unsigned char tempA, tempB;
 
-    int affectBit;
-    int bitState;
-
     for(int n = 0; n < trigCount; n++) {				// step through all of the triggers into the trigger array
         // clear triggered output if timer expired
         if(triggers[n].flags & _BV(TRIG_TIMER)) {
-            if(triggers[n].flags & _BV(TRIG_SET)) {
-                PORTB &= ~triggers[n].outB;
-                PORTD &= ~triggers[n].outD;
-            } else {
-                PORTB |= triggers[n].outB;
-                PORTD |= triggers[n].outD;
-            }
+            actionBits(&triggers[n], !(triggers[n].flags & _BV(TRIG_SET)));
             triggers[n].flags &= ~_BV(TRIG_TIMER);		// clear the timer finished flag
         }
 
-        affectBit = false;
-        bitState = true;
-
         tempA = (portBchanged & triggers[n].inB) | (portDchanged & triggers[n].inD) | (statusChanged & triggers[n].statusIn); // isolate a relevant trigger change
-        tempB = (portBCopy & triggers[n].inB) | (portDCopy & triggers[n].inB) | (statusCopy & triggers[n].statusIn); // and the current state of the relevant bit
+        tempB = (portBCopy & triggers[n].inB) | (portDCopy & triggers[n].inD) | (statusCopy & triggers[n].statusIn); // and the current state of the relevant bit
 
-        if(triggers[n].flags & _BV(TRIG_EDGE)) {
-            if(tempA && (((triggers[n].flags & _BV(TRIG_RISE)) && tempB) || (!(triggers[n].flags & _BV(TRIG_RISE)) && !tempB))) {
-                affectBit = true;
+        if((triggers[n].flags & _BV(TRIG_EDGE)) && tempA) {
+            if(!(!!(triggers[n].flags & _BV(TRIG_RISE)) ^ !!tempB)) {
+                actionBits(&triggers[n], (triggers[n].flags & _BV(TRIG_SET)));
                 triggers[n].timerActive = triggers[n].timerValue;
                 if (triggers[n].flags & _BV(TRIG_CLEAR)) statusFlags &= ~triggers[n].statusIn;
             }
-        } else {
-            affectBit = true;
-            bitState = tempB;
         }
 
-        // Invert the action if the TRIG_SET bit is clear
-        if(triggers[n].flags & _BV(TRIG_SET)) bitState = !bitState;
-
-        if(affectBit) {
-            if(bitState) {
-                PORTB |= triggers[n].outB;
-                PORTD |= triggers[n].outD;
-            } else {
-                PORTB &= ~triggers[n].outB;
-                PORTD &= ~triggers[n].outD;
-            }
-        }
+        // !( !!a ^ !!b) implements a robust XNOR for all integer values
+        if(!(triggers[n].flags & _BV(TRIG_EDGE))) actionBits(&triggers[n], (!(!!(triggers[n].flags & _BV(TRIG_SET)) ^ !!tempB)));
     }
 
 // save current state as previous
-    portBprevious = PINB;
-    portDprevious = PIND;
-    statusPrevious = statusFlags;
+    portBprevious = portBCopy;
+    portDprevious = portDCopy;
+    statusPrevious = statusCopy;
 }
 
 //_______________________________________________________________________________________
@@ -253,7 +239,7 @@ void maintainTimeTriggers() {
     for(int n = 0; n < trigCount; n++) {				// step through all of the triggers into the trigger array
         if(triggers[n].timerActive != 0) {
             triggers[n].timerActive--;					// decrement any active timer
-            if(triggers[n].timerActive == 0) triggers[n].flags |= TRIG_TIMER; // and set a timeout flag if it has reached 0
+            if(triggers[n].timerActive == 0) triggers[n].flags |= _BV(TRIG_TIMER); // and set a timeout flag if it has reached 0
         }
     }
 }
