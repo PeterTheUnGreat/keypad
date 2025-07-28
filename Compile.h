@@ -17,6 +17,9 @@
 //#define		CODE_SECTION_CLOCK
 //#define		CODE_SECTION_RANGE
 #define		CODE_SECTION_IO
+#define		CODE_SECTION_ROTARY
+#define		CODE_SECTION_SAFE
+//#define		CODE_SECTION_TELEPHONE
 
 
 #endif /* COMPILE_H_ */

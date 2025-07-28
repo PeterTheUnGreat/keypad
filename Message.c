@@ -299,8 +299,9 @@ void checkMessage() {
     case MSG_ABOUT:
         txData[0] = unitType;
         txData[1] = statusFlags;
-        txData[2] = trigCount;
+        txData[2] = tempFlags;
         sendMsg(MSG_ABOUT, 3);					// Send an about message with two bytes of data, unit type and status flags and a count of triggers
+        tempFlags = 0;
         break;
     case MSG_RESET:
         while(1);								// force a watchdog reset

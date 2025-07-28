@@ -122,19 +122,19 @@ unsigned char BCDByte(unsigned char n) {
 //
 
 void initDebug() {
-    DDRD |= _BV(DBG_OUT) | _BV(DBG_TRIG);
+    DDRB |= _BV(DBG_OUT) | _BV(DBG_TRIG);
 }
 
 void debugOn() {
-    PORTD |= _BV(DBG_OUT);    // turn on the debug output
+    PORTB |= _BV(DBG_OUT);    // turn on the debug output
 }
 
 void debugOff() {
-    PORTD &= ~_BV(DBG_OUT);    // turn off the debug output
+    PORTB &= ~_BV(DBG_OUT);    // turn off the debug output
 }
 
 void debugToggle() {
-    PORTD ^= _BV(DBG_OUT);    // toggle off the debug output
+    PORTB ^= _BV(DBG_OUT);    // toggle off the debug output
 }
 
 void debugPulse() {
@@ -143,8 +143,8 @@ void debugPulse() {
 }
 
 void debugTrigPulse() {
-    PORTD ^= _BV(DBG_TRIG);    // toggle off the trigger output
-    PORTD ^= _BV(DBG_TRIG);
+    PORTB ^= _BV(DBG_TRIG);    // toggle off the trigger output
+    PORTB ^= _BV(DBG_TRIG);
 }
 
 //_______________________________________________________________________________________

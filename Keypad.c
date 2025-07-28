@@ -1,6 +1,7 @@
 // Peter's program to drive the lock board (c) 2024
 
 
+#include "Compile.h"
 #include "Keypad.h"										// this first to make sure util/delay.h picks up correct clock speed
 #include <avr/io.h>
 #include <util/delay_basic.h>
@@ -13,13 +14,14 @@
 #include <stdbool.h>
 #include <util/twi.h>
 
-#include "Compile.h"
+
 #include "14seg.h"
 #include "message.h"
 #include "Utils.h"
 #include "Menu.h"
 #include "Range.h"
 #include "IO.h"
+#include "Telephone.h"
 
 // This section bellow does all of the startup stuff
 void setup(void) __attribute__ ((naked)) __attribute__ ((section (".init5"))); // do the setup before main called
@@ -41,6 +43,14 @@ const menuStruct menuItems[] PROGMEM = {
     { "EXIT", 0, MENU_TYP_EXIT, 0 , _BV(MENU_BK) + _BV(MENU_MENU) }
 };
 
+const safeStates safeCode[] = {
+    { 10, true },
+    { 15, false },
+    { 20, true  },
+    { 0, 0  }
+};
+
+
 #define MAX_TYPES	4		// This will determine the value that type is constrained to and also the settings menu position
 
 const unsigned char motorAsteps[8] = { 0x82, 0x02, 0x06, 0x04, 0x44, 0x40, 0xC0, 0x80 }; // Values to half steps motor on port B
@@ -53,7 +63,8 @@ const unsigned char motorBsteps[8] = { 0x50, 0xD0, 0xF0, 0xE0, 0xA0, 0x80, 0x00,
 
 void initDisplay() {
     mem_ptr	=	0;
-    DDRB |= _BV(RCLK) + _BV(MOSI) + _BV(SCK);		 	// set pins 0, 3 & 5 of port B as output pins (latch on high for display chip, MOSI and SCK)
+    // Set SS as output to stop display being blanked
+    DDRB |= _BV(RCLK) + _BV(MOSI) + _BV(SCK) + _BV(SS);		 	// set pins 0, 3 & 5 of port B as output pins (latch on high for display chip, MOSI and SCK)
 
     DDRC = 0x07;										// enable lower 3 bits of portc as outputs
     SPCR = _BV(SPE) + _BV(MSTR) + _BV(SPIE); 			// Turn on spi in master mode with data clocked on rising edge of CLK and enable transfer complete interrupt
@@ -74,6 +85,22 @@ void initKeyInput() {
 
     keyBufPtr	= 0;								// point at first key store location
 }
+
+#ifdef		CODE_SECTION_ROTARY
+void initRotary() {
+    DDRD &= ~(_BV(PD3) + _BV(PD4));					// Set PD3 and PD4 as inputs
+    PORTD |= (_BV(PD3) + _BV(PD4));					// Enable pull-ups
+
+    MCUCR |= _BV(ISC11);							// INT1 on falling edge
+    GICR |= _BV(INT1);								// Enable INT1
+
+    rotaryCount = 0;
+    directionCount = DIRECTION_DEBOUNCE / 2;
+    rotaryClockwise = true;
+
+    safeState = 0;									// reset the state machine that unlocks the safe
+}
+#endif /* CODE_SECTION_ROTARY */
 
 #ifdef CODE_SECTION_CLOCK
 void initClock() {
@@ -126,9 +153,18 @@ void setup() {
 
     flags = 0;											// set all flags to 0 to start with
     statusFlags = 0;
+    tempFlags |= 0;
 
     initDisplay();
     initKeyInput();
+
+#ifdef		CODE_SECTION_ROTARY
+    initRotary();
+#endif /* CODE_SECTION_ROTARY */
+
+#ifdef CODE_SECTION_TELEPHONE
+    initTelephone();
+#endif /* CODE_SECTION_TELEPHONE */
 
 #ifdef CODE_SECTION_DEBUG
     initDebug();
@@ -172,11 +208,76 @@ void start_interrupts() {
 //_______________________________________________________________________________________
 //
 
+#ifdef CODE_SECTION_ROTARY
+ISR(INT1_vect) {
+    if (PIND & _BV(PD4)) {
+        // clockwise
+        if(directionCount < DIRECTION_DEBOUNCE) directionCount++;
+        // if a change of direction is detected then set the direction to clockwise
+        if((directionCount == DIRECTION_DEBOUNCE) && !rotaryClockwise) {
+            rotaryClockwise = true;
+            rotaryCount = 0;
+            // a change of direction must reset the state machine
+            safeState = 0;
+        }
+
+        if(rotaryClockwise) {
+            rotaryCount++;
+        } else {
+            rotaryCount--;
+        }
+
+    } else {
+        //anti-clockwise
+        if(directionCount > 0) directionCount--;
+        // if a change of direction is detected then set the direction to anti-clockwise
+        if((directionCount == 0) && rotaryClockwise) {
+            rotaryClockwise = false;
+            rotaryCount = 0;
+            // a change of direction must reset the state machine
+            safeState = 0;
+        }
+
+        if(!rotaryClockwise) {
+            rotaryCount++;
+        } else {
+            rotaryCount--;
+        }
+    }
+
+    // Only take any action if the stethoscope is present
+    if(statusFlags & _BV(STAT_STETH)) {
+        // Have we reached the next state?
+        if(rotaryCount == safeCode[safeState].steps) {
+            if((rotaryClockwise && safeCode[safeState].clockwise) || (!rotaryClockwise && !safeCode[safeState].clockwise)) {
+                safeState++;
+                statusFlags |= _BV(STAT_PULSE); // Make a click
+                // prepare for a change of direction and fudge the de-bounce counter
+                if (rotaryClockwise) {
+                    rotaryClockwise = false;
+                    directionCount = 0;
+                } else {
+                    rotaryClockwise = true;
+                    directionCount = DIRECTION_DEBOUNCE;
+                }
+                rotaryCount = 0;
+                // Check to see if we have unlocked?
+                if(safeCode[safeState].steps == 0) {
+                    safeState = 0;
+                    statusFlags |= _BV(STAT_UNLOCKED);
+                    tempFlags |= _BV(TF_UNLOCKED);
+                }
+            }
+        }
+    }
+}
+#endif /* CODE_SECTION_ROTARY */
+
 ISR(TIMER0_OVF_vect) {								// handle timer 0 overflow
     if((flags & _BV(FLASH_F)) && (holdOff & 0x10)) SPDR = 0xff; // blank the display every approx. 200ms if we are flashing
     else SPDR = 0xff - dispMem[mem_ptr];				// write the given one to SPI
     SPCR |= _BV(MSTR);									// Make sure we are in master mode, just in case nSS was driven low
-    if(nREDE_Holdoff != 0) nREDE_Holdoff--;				// maintain the nREDE holdoff timer
+    if(nREDE_Holdoff != 0) nREDE_Holdoff--;				// maintain the nREDE hold off timer
 }
 
 ISR(SPI_STC_vect) {
@@ -504,7 +605,7 @@ void getMenuItem(int mi) {
 
 
 void procesMenuItem() {
-    char keyPress;
+    char keyPress, chr;
     int	h, m;
 
     char str[5] = "----";
@@ -533,9 +634,30 @@ void procesMenuItem() {
             EEPROM_read_string(EEPROM_CODE, code, 4);		// get the code from EEPROM
             break;
         case TYPE_SAFE:
+#ifdef CODE_SECTION_ROTARY
+
+            if(statusFlags & _BV(STAT_UNLOCKED)) {
+                dispWriteStr("OPEN", dispMem);
+            } else {
+                switch(safeState) {
+                case 0:
+                    chr = ' ';
+                    break;
+                case 1:
+                    chr = '+';
+                    break;
+                case 2:
+                    chr = 'x';
+                    break;
+                case 3:
+                    chr = '*';
+                    break;
+                }
+
+                if(menuItem == TYPE_SAFE) dispWriteByte( rotaryCount, dispMem, rotaryClockwise ? 'C' : 'A', chr); // display the count only if not in menu
+            }
+#endif /* CODE_SECTION_ROTARY */
             break;
-
-
         case TYPE_RANGE:
 #ifdef	CODE_SECTION_RANGE
             if(menuItem == TYPE_RANGE) {	// only if not in menu - keypad conflicts with IIC
@@ -588,6 +710,7 @@ void procesMenuItem() {
             case MENU_TYP_CODE:
                 if (strcmp(str, code) == 0) {
                     statusFlags |= _BV(STAT_UNLOCKED);
+                    tempFlags |= _BV(TF_UNLOCKED);
                     displayAndWait("+OK+", 64, 0);
 
                 } else {
@@ -637,29 +760,6 @@ void procesMenuItem() {
                     break;
                 }
             } else if((menuLocal.flags & _BV(MNEU_ENTRY)) != 0) {
-                switch (keyPress) {
-                case '7':
-                    statusFlags |= _BV(STAT_TRIG_1);
-                    break;
-                case '4':
-                    statusFlags &= ~_BV(STAT_TRIG_1);
-                    break;
-                case '8':
-                    statusFlags |= _BV(STAT_TRIG_2);
-                    break;
-                case '5':
-                    statusFlags &= ~_BV(STAT_TRIG_2);
-                    break;
-                case '9':
-                    statusFlags |= _BV(STAT_TRIG_3);
-                    break;
-                case '6':
-                    statusFlags &= ~_BV(STAT_TRIG_3);
-                    break;
-                default:
-                    break;
-                }
-
                 // else in entry mode get key and add to number
                 str[4 - menuLocal.digits--] = keyPress;				// put the key value in the code
                 dispWriteStr(str, dispMem);

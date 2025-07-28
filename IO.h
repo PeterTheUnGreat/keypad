@@ -31,18 +31,20 @@ unsigned char	statusPrevious;
 //_______________________________________________________________________________________
 //
 
-struct Trigger {
+typedef struct {
     unsigned char	outB;
     unsigned char	outD;
+    unsigned char	outStatus;
     unsigned char	inB;
     unsigned char	inD;
     unsigned char	statusIn;
     unsigned char	flags;
     unsigned char	timerValue;
     unsigned char	timerActive;
-};
+} triggerStruct;
 
 int		trigCount;						// number of triggers we have
+int		EEPROMtrigCount;				// number of triggers in EEPROM
 
 #define TRIG_MAX	10					// max number of triggers in table
 
@@ -63,14 +65,21 @@ int		trigCount;						// number of triggers we have
 #define		IO_MSG_IN			3		// 03 - Read Input (1 byte) replies with 03 message with 3 bytes BBDD
 #define		IO_MSG_TRIG			4		// 04 - Set trigger (7 bytes) BBDD (output) BBDDSS (source) FF (flags)
 
-#define		IO_MSK_B			0xD6	// PortB PB1, PB2, PB4, PB6, PB7
-
-
 #ifdef		CODE_SECTION_DEBUG
-#define		IO_MSK_D			0xE0	// PortD PD5-PD7 (PD6 and PD7 high current open drain) PD3 and PD4 used by debug
+#define		IO_MSK_B			(_BV(PB4) + _BV(PB6) + _BV(PB7))	// PortB PB4, PB6, PB7 (PB1, PB2 used by debug)
+#define		DDR_MSK_B			(_BV(PB4) + _BV(PB6) + _BV(PB7))
 #else
-#define		IO_MSK_D			0xF8	// PortD PD3-PD7 (PD6 and PD7 high current open drain)
+#define		IO_MSK_B			(_BV(PB1) + _BV(PB2) + _BV(PB4) + _BV(PB6) + _BV(PB7))	// PortB PB1, PB2, PB4, PB6, PB7
+#define		DDR_MSK_B			(_BV(PB1) + _BV(PB4) + _BV(PB6) + _BV(PB7))	// Leave direction of PB2 alone as it will blank the display if used as an input	
 #endif		/*CODE_SECTION_DEBUG*/
+
+#ifdef		CODE_SECTION_ROTARY
+#define		IO_MSK_D			(_BV(PD5) + _BV(PD6) + _BV(PD7))	// PortD PD5-PD7 (PD6 and PD7 high current open drain) PD3 and PD4 used by rotary encoder
+#define		DDR_MSK_D			(_BV(PD5) + _BV(PD6) + _BV(PD7))
+#else
+#define		IO_MSK_D			(_BV(PD3) + _BV(PD4) + _BV(PD5) + _BV(PD6) + _BV(PD7))	// PortD PD3-PD7 (PD6 and PD7 high current open drain)
+#define		DDR_MSK_D			(_BV(PD3) + _BV(PD4) + _BV(PD5) + _BV(PD6) + _BV(PD7))
+#endif		/*CODE_SECTION_ROTARY*/
 
 #endif /*CODE_SECTION_IO*/
 #endif /* IO_H_ */

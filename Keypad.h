@@ -3,6 +3,8 @@
 #ifndef 		KEYPAD_H_
 #define 		KEYPAD_H_
 
+#include "Compile.h"
+
 //_______________________________________________________________________________________
 // General timing constants
 //_______________________________________________________________________________________
@@ -29,6 +31,11 @@ volatile unsigned char	flags;
 #define			FLASH_F			0			// message should be flashing
 #define			KEYPAD_DIS		1			// set to a 1 if the keypad should be disabled
 
+// flags set to wait until next status message
+volatile unsigned char tempFlags;
+
+#define			TF_UNLOCKED		0			// Set to indicate an unlock event has happened
+
 volatile unsigned char	holdOff;			// Counter to keep track of hold-off period
 
 unsigned char	unitType;					// This holds a number to indicate what type of board this is
@@ -39,8 +46,8 @@ unsigned char	unitType;					// This holds a number to indicate what type of boar
 
 volatile unsigned char statusFlags;
 #define			STAT_UNLOCKED	0			// Flag to indicate correct code entered
-#define			STAT_TRIG_1		1
-#define			STAT_TRIG_2		2
+#define			STAT_PULSE		1			// Flag used to indicate pulse for safe knob
+#define			STAT_STETH		2			// Flag use to indicate the stethescope present
 #define			STAT_TRIG_3		3
 
 //_______________________________________________________________________________________
@@ -49,6 +56,7 @@ volatile unsigned char statusFlags;
 //
 #define			RCLK 	0			// pin 0 of Port B latches display data
 #define 		MOSI 	3
+#define			SS		2
 #define 		SCK 	5
 
 unsigned char 	dispMem[8];		// reserve eight bytes for display memory
@@ -149,6 +157,29 @@ volatile unsigned int	tempTimeDelay;
 
 #define TICK_MIN	1875				// number of 32ms ticks in one minute
 #endif /* CODE_SECTION_CLOCK */
+
+
+#ifdef		CODE_SECTION_ROTARY
+//_______________________________________________________________________________________
+// stuff to do with rotary encoder
+//_______________________________________________________________________________________
+//
+volatile unsigned short rotaryCount;
+
+volatile unsigned short directionCount;
+
+volatile unsigned short rotaryClockwise;		// true if going clockwise, false if ant-clockwise
+
+#define DIRECTION_DEBOUNCE			2
+
+unsigned char	safeState;
+
+typedef struct  {
+    unsigned short	steps;
+    unsigned char	clockwise;
+} safeStates;
+
+#endif /* CODE_SECTION_ROTARY */
 
 //_______________________________________________________________________________________
 // EEPROM allocations

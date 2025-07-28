@@ -50,8 +50,8 @@ unsigned char BCDByte(unsigned char n);
 
 #ifdef CODE_SECTION_DEBUG
 
-#define		DBG_OUT		3									// PD3 
-#define		DBG_TRIG	4									// PD4
+#define		DBG_OUT		1									// PB1 
+#define		DBG_TRIG	2									// PB2
 
 
 void initDebug();
