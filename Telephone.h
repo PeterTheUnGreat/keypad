@@ -6,6 +6,7 @@
  */
 
 #include "Compile.h"
+#include <stdbool.h>
 
 #ifndef TELEPHONE_H_
 #define TELEPHONE_H_
@@ -24,11 +25,10 @@ void initTelephone();
 //_______________________________________________________________________________________
 //
 
-
-
-char	sineTablePtr;
-char	cadenceTablePtr;
+short	cadenceTablePtr;
 short	cadenceCount;
+short	counter_20Hz;
+bool	phase_20Hz;
 
 #endif /*CODE_SECTION_TELEPHONE*/
 

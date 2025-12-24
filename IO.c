@@ -57,6 +57,16 @@ const triggerStruct defaultTriggers[] PROGMEM = {
         0, 0, 0									// Following trigger - no timer (inverted)
     }
 #endif /*CODE_SECTION_SAFE*/
+
+#ifdef CODE_SECTION_TELEPHONE
+// This trigger activates the ringer output when the STSUS_RING flag is set
+    , {
+        0, _BV(PD6), 0,								// Output (PortB, PortD, Status)
+        0, 0, _BV(STAT_RING),						// Input (PortB, PortD, Status)
+        _BV(TRIG_SET), 0, 0							// Following trigger - no timer (not-inverted)
+    }
+#endif /*CODE_SECTION_TELEPHONE*/
+
 };
 
 #define NUM_DEFAULT_TRIGGERS (sizeof(defaultTriggers) / sizeof(triggerStruct))
@@ -80,7 +90,8 @@ void initIO() {
     unsigned char flagsIn;
 
     EEPROMtrigCount = EEPROM_read(EEPROM_TRIG_COUNT);
-    if(EEPROMtrigCount == 0xFF) EEPROMtrigCount = 0;			// just in case EEPROM has bee wiped
+    EEPROMtrigCount = 0;
+    if(EEPROMtrigCount == 0xFF) EEPROMtrigCount = 0;			// just in case EEPROM has been wiped
 
     // if there are any triggers in EEPROM then use these in preference to the defaults
     if(EEPROMtrigCount) {

@@ -11,53 +11,49 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "Telephone.h"
+#include "Utils.h"
 
 #ifdef CODE_SECTION_TELEPHONE
 
-const uint8_t sine_table[48] = {
-    0x80, 0x96, 0xAC, 0xC1, 0xD4, 0xE4, 0xEF, 0xF5,
-    0xF5, 0xF0, 0xE6, 0xD8, 0xC6, 0xB2, 0x9C, 0x85,
-    0x6F, 0x59, 0x46, 0x34, 0x26, 0x1A, 0x10, 0x0A,
-    0x0A, 0x0F, 0x18, 0x24, 0x32, 0x43, 0x56, 0x6B,
-    0x81, 0x97, 0xAC, 0xC0, 0xD2, 0xE1, 0xEC, 0xF3,
-    0xF5, 0xF3, 0xEC, 0xE0, 0xD0, 0xBC, 0xA7, 0x91
-};
-
-#define SINE_TABLE_MAX 48
-
-const uint16_t ringingCadence[4] = { 400, 200, 400, 2000 };
+const short ringingCadence[4] = { 16, 8, 16, 80 };
 
 #define CADENCE_MAX	4
-
 
 //_______________________________________________________________________________________
 // Set up everything needed for telephone
 //_______________________________________________________________________________________
 //
 void initTelephone() {
-    sineTablePtr = 0;
     cadenceTablePtr = 0;
     cadenceCount = 0;
+    counter_20Hz = 0;
+    phase_20Hz = false;
 
-    OCR1A = T1_1ms;
-    TIMSK |= _BV(OCIE1A);							// Set the timer to trigger an interrupt every 2ms using output compare A
-    TCCR1B = _BV(CS11) + _BV(WGM12);				// Start timer 1 with prescaler of 8 and in CTC mode
+    OCR3A = T1_25ms;
 
-    TCCR2 = _BV(WGM21) + _BV(WGM20) + _BV(COM21) + _BV(CS20);	// Set timer 2 to fast PWM mode with OC2 as non-inverted output and presacaler of 1
-    DDRB |= _BV(PB3);								// Make sure PB3 is set as output so we can see PWM
-    PORTB &= ~_BV(PB3);								// portB off if OC2 disconnected
+    TIMSK3 |= _BV(OCIE3A);							// Set timer 3 to trigger an interrupt every 25ms using output compare A
 
-    OCR2 = 0;
+#ifdef CLOCK_X8
+    TCCR3B = _BV(CS31) + _BV(CS30) + _BV(WGM32);	// Start timer 3 with prescaler of 64 and in CTC mode (we have sped up the clock by a factor of 8)
+#else
+    TCCR3B = _BV(CS31) + _BV(WGM32);		// Start timer 3 with prescaler of 8 and in CTC mode
+#endif // CLOCK_X8
 
-    SPCR = 0;										// disable SPI
 }
 
-ISR(TIMER1_COMPA_vect) {								// handle timer 1 output compare A interrupt
+ISR(TIMER3_COMPA_vect) {								// handle timer 3 output compare A interrupt
     // turn the ringer on and off in the right pattern
-    if (cadenceTablePtr & 0x01) OCR2 = 0;
-    else OCR2 = pgm_read_byte(&sine_table[sineTablePtr++]);
-
-    if(sineTablePtr >= SINE_TABLE_MAX) sineTablePtr = 0; // wrap around pointer
+    if(!(cadenceTablePtr & 0x01) && phase_20Hz) { // && (statusFlags & _BV(STAT_RINGING))
+#ifdef CODE_SECTION_DEBUG
+        debugOn();
+#endif // CODE_SECTION_DEBUG
+        statusFlags |= _BV(STAT_RING);
+    } else {
+#ifdef CODE_SECTION_DEBUG
+        debugOff();
+#endif // CODE_SECTION_DEBUG
+        statusFlags &= ~_BV(STAT_RING);
+    }
 
     cadenceCount++;
     if(cadenceCount >= ringingCadence[cadenceTablePtr]) {
@@ -65,6 +61,8 @@ ISR(TIMER1_COMPA_vect) {								// handle timer 1 output compare A interrupt
         cadenceTablePtr++;
         if(cadenceTablePtr >= CADENCE_MAX) cadenceTablePtr = 0;
     }
+
+    phase_20Hz = !phase_20Hz;
 }
 
-#endif /*CODE_SECTION_TELEPHONE*/
+#endif //CODE_SECTION_TELEPHONE

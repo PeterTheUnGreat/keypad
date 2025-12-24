@@ -14,10 +14,11 @@
 
 #define			T1_1ms			125		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 1ms (0.4s per revolution 1.8deg steps with half stepping)
 #define			T1_2_5ms		312		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 2.5ms (1s per revolution 1.8deg steps with half stepping)
-#define			T1_2ms			250		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 2ms (0.8s per revolution 1.8deg steps with half stepping)
+//#define			T1_2ms			250		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 2ms (0.8s per revolution 1.8deg steps with half stepping)
 #define			T1_10ms			1250	// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 10ms (4s per revolution 1.8deg steps with half stepping)
-#define			T1_5ms			625		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 5ms (2s per revolution 1.8deg steps with half stepping)
-#define			T1_100ms		12500	// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 100ms (40s per revolution 1.8deg steps with half stepping)
+//#define			T1_5ms			625		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 5ms (2s per revolution 1.8deg steps with half stepping)
+//#define			T1_100ms		12500	// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 100ms (40s per revolution 1.8deg steps with half stepping)
+#define			T1_25ms		3120
 
 
 //_______________________________________________________________________________________
@@ -29,7 +30,6 @@
 volatile unsigned char	flags;
 
 #define			FLASH_F			0			// message should be flashing
-#define			KEYPAD_DIS		1			// set to a 1 if the keypad should be disabled
 
 // flags set to wait until next status message
 volatile unsigned char tempFlags;
@@ -43,12 +43,16 @@ unsigned char	unitType;					// This holds a number to indicate what type of boar
 #define			TYPE_KEYPAD		1
 #define			TYPE_SAFE		2
 #define			TYPE_RANGE		3
+#define			TYPE_CHESS		4
 
 volatile unsigned char statusFlags;
 #define			STAT_UNLOCKED	0			// Flag to indicate correct code entered
 #define			STAT_PULSE		1			// Flag used to indicate pulse for safe knob
 #define			STAT_STETH		2			// Flag use to indicate the stethescope present
 #define			STAT_TRIG_3		3
+#define			STAT_RINGING	4			// Set this flag to ring the ringer
+#define			STAT_RING		5			// Ringer output on
+#define			STAT_DID_RST	6			// signal that the EEPROM was erased
 
 //_______________________________________________________________________________________
 // Display stuff
@@ -77,6 +81,19 @@ unsigned short  sample;				// a temporary container for the values of switches c
 #define			maxKeys		20		// most key presses we can hold
 volatile unsigned char 	keyBuf[maxKeys];	// reserve twenty bytes to hold key presses until processed
 volatile int	keyBufPtr;			// point at first key store location
+
+// Arrange different keypad for different hardware
+#ifdef __AVR_ATmega328PB__
+#define		MENU_UP		'2'
+#define		MENU_DOWN	'8'
+#define		MENU_ENTER	'5'
+#define		MENU_TEST	'6'
+#else
+#define		MENU_UP		'8'
+#define		MENU_DOWN	'2'
+#define		MENU_ENTER	'5'
+#define		MENU_TEST	'4'
+#endif
 
 //_______________________________________________________________________________________
 // Stuff for key code variety
@@ -170,7 +187,7 @@ volatile unsigned short directionCount;
 
 volatile unsigned short rotaryClockwise;		// true if going clockwise, false if ant-clockwise
 
-#define DIRECTION_DEBOUNCE			2
+#define DIRECTION_DEBOUNCE			1
 
 unsigned char	safeState;
 

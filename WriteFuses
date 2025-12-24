@@ -1,0 +1,12 @@
+##!/bin/bash
+
+echo "Cleaning up"
+echo "Write to target"
+
+
+if [ $1 = m328pb ]
+then
+	avrdude -P /dev/spidev0.0:/dev/gpiochip0 -c linuxspi -p m328pb -U lfuse:w:0x62:m -U hfuse:w:0xD7:m -U efuse:w:0xF9:m
+else
+	avrdude -P /dev/spidev0.0:/dev/gpiochip0 -c linuxspi -p m8 -U lfuse:w:0xE2:m -U hfuse:w:0xD9:m
+fi

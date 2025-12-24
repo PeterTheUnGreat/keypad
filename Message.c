@@ -29,7 +29,13 @@ void incRecPtr() {
 
 // enable receiver and disable transmitter
 void setReceive() {
+
+#ifdef __AVR_ATmega328PB__
+    UCSR0B = _BV(RXEN0) + _BV(RXCIE0);						// enable receiver and receive interrupts, turn transmitter off
+#else
     UCSRB = _BV(RXEN) + _BV(RXCIE);						// enable receiver and receive interrupts, turn transmitter off
+#endif
+
     PORTD &= ~_BV(TX_RX_SEL);							// enable receive buffer
     msg_flags &= ~_BV(MSG_TRANSMITTING);
 }
@@ -42,8 +48,15 @@ void setTransmit() {
     if((msg_flags & _BV(MSG_TRANSMITTING)) == 0) {
         msg_flags |= _BV(MSG_TRANSMITTING);
         msg_flags &= ~_BV(MSG_TX_DONE);
+
+#ifdef __AVR_ATmega328PB__
+        UCSR0B = _BV(TXEN0) + _BV(UDRIE0) + _BV(TXCIE0);		// enable transmitter buffer empty and complete interrupts, turn receiver off
+        UDR0 = tx_buff[tx_ptr_out++];						// pup tyhe first character in the UDR to get things going
+#else
         UCSRB = _BV(TXEN) + _BV(UDRIE) + _BV(TXCIE);		// enable transmitter buffer empty and complete interrupts, turn receiver off
         UDR = tx_buff[tx_ptr_out++];						// pup tyhe first character in the UDR to get things going
+#endif
+
         PORTD |= _BV(TX_RX_SEL);							// enable transmit buffer
     }
     sei();
@@ -53,22 +66,40 @@ void setTransmit() {
 // interrupt routines
 //_______________________________________________________________________________________
 //
-ISR (USART_UDRE_vect) {
+ISR (USART_UDRE_handler) {
+
+#ifdef __AVR_ATmega328PB__
+    UDR0 = tx_buff[tx_ptr_out++];
+#else
     UDR = tx_buff[tx_ptr_out++];
+#endif
+
     if(tx_ptr_out >= TX_BUFF_SIZE) tx_ptr_out = 0;
     if(tx_ptr_out == tx_ptr_in) {
         msg_flags |= _BV(MSG_TX_DONE);    // turn off further tx empty interrupts so no new data is written into the register
+
+#ifdef __AVR_ATmega328PB__
+        UCSR0B &= ~_BV(UDRIE0);
+#else
         UCSRB &= ~_BV(UDRIE);
+#endif
+
     }
 }
 
-ISR (USART_TXC_vect) {
+ISR (USART_TXC_handler) {
     if((msg_flags & _BV(MSG_TX_DONE)) != 0) setReceive();
 }
 
 
-ISR (USART_RXC_vect) {
+ISR (USART_RXC_handler) {
+
+#ifdef __AVR_ATmega328PB__
+    rec_buff[rec_ptr_in++] = UDR0;
+#else
     rec_buff[rec_ptr_in++] = UDR;
+#endif
+
     if(rec_ptr_in >= REC_BUFF_SIZE) rec_ptr_in = 0;
     nREDE_Holdoff = 2;									// Prevent transmission until mater has had time to switch
 }
@@ -87,11 +118,22 @@ void initComms(int	addr) {
 
     DDRD |= _BV(TX_RX_SEL);								// Set data direction output
 
+
+#ifdef __AVR_ATmega328PB__
+    // Set USART state for 9600 baud no parity one stop bits and 8 bit data
+    UBRR0H = (unsigned char)(BAUD_9600 >> 8);
+    UBRR0L = (unsigned char) BAUD_9600;
+    UCSR0A |= _BV(U2X0);									// make sure to set the BAUD rate doubler
+    UCSR0C = _BV(UCSZ00) + _BV(UCSZ01);						// Set frame format: 8 data,  1 stop bit
+#else
     // Set USART state for 9600 baud no parity one stop bits and 8 bit data
     UBRRH = (unsigned char)(BAUD_9600 >> 8);
     UBRRL = (unsigned char) BAUD_9600;
     UCSRA |= _BV(U2X);									// make sure to set the BAUD rate doubler
-    UCSRC = _BV(URSEL) + _BV(UCSZ0) + _BV(UCSZ1);		// Set frame format: 8 data,  1 stop bit
+    UCSRC = _BV(URSEL) + _BV(UCSZ0) + _BV(UCSZ1);		// Set frame format: 8 data,  1 stop bi
+#endif
+
+
     setReceive();
 
     tempCtr = 0;

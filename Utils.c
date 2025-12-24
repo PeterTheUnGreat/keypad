@@ -15,17 +15,30 @@
 //_______________________________________________________________________________________
 //
 void EEPROM_write(unsigned int uiAddress, unsigned char ucData) {
+
+#ifdef __AVR_ATmega328PB__
+    while(EECR & (1 << EEPE)) wdt_reset();					// Kick the watchdog while waiting for completion of previous write
+    EEAR = uiAddress;										// Set up address and data registers (writes 16 bits)
+    EEDR = ucData;
+    EECR |= (1 << EEMPE);									// Writing is performed by writing logical one to EEMWE followed by setting EEWE within 4 clock cycles
+    EECR |= (1 << EEPE);
+#else
     while(EECR & (1 << EEWE)) wdt_reset();					// Kick the watchdog while waiting for completion of previous write
     EEAR = uiAddress;										// Set up address and data registers
     EEDR = ucData;
     EECR |= (1 << EEMWE);										// Writing is performed by writing logical one to EEMWE followed by setting EEWE within 4 clock cycles
     EECR |= (1 << EEWE);
+#endif
 }
 
 unsigned char EEPROM_read(unsigned int uiAddress) {
+#ifdef __AVR_ATmega328PB__
+    while(EECR & (1 << EEPE)) wdt_reset();					// Kick the watchdog while waiting for completion of previous write
+#else
     while(EECR & (1 << EEWE)) wdt_reset();					// Kick the watchdog while waiting for completion of previous write
-    EEAR = uiAddress;										// Set up address and data registers
-    EECR |= (1 << EERE);										// Start eeprom read by writing EERE
+#endif
+    EEAR = uiAddress;										// Set up address and data registers (writes 16 bits for 328P)
+    EECR |= (1 << EERE);									// Start eeprom read by writing EERE
     return EEDR;											// Return data from data register
 }
 
@@ -39,6 +52,10 @@ void EEPROM_read_string(unsigned int uiAddress, char *str, int n) {
     for(int i = 0; i < n; i++) str[i] = EEPROM_read(uiAddress++);
 }
 
+void EEPROM_erase() {
+    // Write 0xFF to all EEPROM
+    for (unsigned int i = 0; i <= E2END; i++) EEPROM_write ( i, 0xFF );
+}
 
 #ifdef	CODE_SECTION_IIC
 //_______________________________________________________________________________________
@@ -46,20 +63,16 @@ void EEPROM_read_string(unsigned int uiAddress, char *str, int n) {
 //_______________________________________________________________________________________
 //
 // handle the TWI interrupt. Note that the interrupt flag is not cleared by hardware and must be cleared manually in the interrupt routine
-ISR(TWI_vect) {
+ISR(TWI1_vect) {
     unsigned char controlCopy =  _BV(TWEN) | _BV(TWIE) | _BV(TWINT);	// clear the action bits and acknowledge ready for next thing
 
-#ifdef CODE_SECTION_DEBUG
-    debugPulse();
-#endif /* CODE_SECTION_DEBUG */
-
-    switch(TWSR & TW_STATUS_MASK) {
+    switch(TWSR1 & TW_STATUS_MASK) {
     case TW_START :
-        TWDR = TWI_address;								// Set the address and read write bit
+        TWDR1 = TWI_address;								// Set the address and read write bit
         break;
     case TW_MT_SLA_ACK:
     case TW_MT_DATA_ACK:
-        if(TWI_index < TWI_datacount) TWDR = TWI_send_data[TWI_index++];
+        if(TWI_index < TWI_datacount) TWDR1 = TWI_send_data[TWI_index++];
         else {
             controlCopy |= _BV(TWSTO);					// all finished, send stop
             controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
@@ -69,30 +82,27 @@ ISR(TWI_vect) {
         if (TWI_datacount != 1) controlCopy |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
         break;
     case TW_MR_DATA_ACK:
-        TWI_read_data[TWI_index++] = TWDR;				// get the next byte of data
+        TWI_read_data[TWI_index++] = TWDR1;				// get the next byte of data
         if(TWI_index < (TWI_datacount - 1)) controlCopy |= _BV(TWEA); // Acknowledge unless we are on the last byte
         break;
     case TW_MR_DATA_NACK:
-        TWI_read_data[TWI_index] = TWDR;					// get the last byte of data
+        TWI_read_data[TWI_index] = TWDR1;					// get the last byte of data
         controlCopy |= _BV(TWSTO);							// all finished, send stop
         controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
         break;
     default:
-#ifdef CODE_SECTION_DEBUG
-        debugPulse();
-#endif /* CODE_SECTION_DEBUG */
         controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error#
         controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
         TWI_flags |= _BV(TWI_flag_error);
         break;
     }
-    TWCR = controlCopy;									// This clears the interrupt and starts the next action
+    TWCR1 = controlCopy;									// This clears the interrupt and starts the next action
 }
 
 void i2cInit() {
-    TWBR = 0x00;										// run the TWI as fast as it will go
-    TWSR = 0x00;										// no pre-scaler
-    TWCR = _BV(TWEN);									// turn on the TWI
+    TWBR1 = 0x00;										// run the TWI as fast as it will go
+    TWSR1 = 0x00;										// no pre-scaler
+    TWCR1 = _BV(TWEN);									// turn on the TWI
 }
 
 int i2cTransfer(unsigned char IIC_addr, int n, int readWrite) {
@@ -100,7 +110,7 @@ int i2cTransfer(unsigned char IIC_addr, int n, int readWrite) {
     TWI_datacount = n;
     TWI_index = 0;
     TWI_address = (IIC_addr << 1) + readWrite;
-    TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
+    TWCR1 = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
     return TWI_address;
 }
 #endif /* CODE_SECTION_IIC */

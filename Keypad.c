@@ -22,6 +22,7 @@
 #include "Range.h"
 #include "IO.h"
 #include "Telephone.h"
+#include "Chess.h"
 
 // This section bellow does all of the startup stuff
 void setup(void) __attribute__ ((naked)) __attribute__ ((section (".init5"))); // do the setup before main called
@@ -34,6 +35,7 @@ const menuStruct menuItems[] PROGMEM = {
     { "----", 4, MENU_TYP_CODE, 0, _BV(MENU_NUM) + _BV(MNEU_ENTRY) },	// menu entry for safe - keypad entry allowed
     { "SAFE", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for safe - no keypad entry
     { "DIST", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for range - no keypad entry
+    { "CHES", 0, MENU_TYPE_NULL, 0, 0 },								// menu entry for chess - no keypad entry
 
     { "TEST", 0, MENU_TYP_TEST, 0, _BV(MENU_FWD) + _BV(MENU_MENU)},
     { "TYPE", 1, MENU_TYP_BYTE, EEPROM_TYPE, _BV(MENU_FWD) + _BV(MENU_BK) + _BV(MENU_MENU) + _BV(MENU_NUM)},
@@ -43,15 +45,16 @@ const menuStruct menuItems[] PROGMEM = {
     { "EXIT", 0, MENU_TYP_EXIT, 0 , _BV(MENU_BK) + _BV(MENU_MENU) }
 };
 
+#ifdef		CODE_SECTION_ROTARY
 const safeStates safeCode[] = {
     { 10, true },
     { 15, false },
     { 20, true  },
     { 0, 0  }
 };
+#endif /*CODE_SECTION_ROTARY*/
 
-
-#define MAX_TYPES	4		// This will determine the value that type is constrained to and also the settings menu position
+#define MAX_TYPES	5		// This will determine the value that type is constrained to and also the settings menu position
 
 const unsigned char motorAsteps[8] = { 0x82, 0x02, 0x06, 0x04, 0x44, 0x40, 0xC0, 0x80 }; // Values to half steps motor on port B
 const unsigned char motorBsteps[8] = { 0x50, 0xD0, 0xF0, 0xE0, 0xA0, 0x80, 0x00, 0x40 }; // Values to half steps motor on port D
@@ -67,10 +70,26 @@ void initDisplay() {
     DDRB |= _BV(RCLK) + _BV(MOSI) + _BV(SCK) + _BV(SS);		 	// set pins 0, 3 & 5 of port B as output pins (latch on high for display chip, MOSI and SCK)
 
     DDRC = 0x07;										// enable lower 3 bits of portc as outputs
+
+#ifdef __AVR_ATmega328PB__
+    SPCR0 = _BV(SPE) + _BV(MSTR) + _BV(SPIE); 			// Turn on spi in master mode with data clocked on rising edge of CLK and enable transfer complete interrupt
+    TCCR0B &= ~0x07;
+
+# ifdef CLOCK_X8
+    TCCR0B |= _BV(CS01) + _BV(CS00); 					// set timer0 clock source to prescaler/64 (clock is going 8 times faster)
+# else
+    TCCR0B |= _BV(CS01); 								// set timer0 clock source to prescaler/8
+# endif /* CLOCK_X8 */
+
+
+
+    TIMSK0 |= _BV(TOIE0);								// enable timer 0 interrupts
+#else
     SPCR = _BV(SPE) + _BV(MSTR) + _BV(SPIE); 			// Turn on spi in master mode with data clocked on rising edge of CLK and enable transfer complete interrupt
     TCCR0 &= ~0x07;
-    TCCR0 |= _BV(CS01); 				// set timer0 clock source to prescaler/8
+    TCCR0 |= _BV(CS01); 								// set timer0 clock source to prescaler/8
     TIMSK |= _BV(TOIE0);								// enable timer 0 interrupts
+#endif
 
     flags &= ~_BV(FLASH_F);								// start off not flashing
     holdOff = 0;
@@ -92,7 +111,12 @@ void initRotary() {
     PORTD |= (_BV(PD3) + _BV(PD4));					// Enable pull-ups
 
     MCUCR |= _BV(ISC11);							// INT1 on falling edge
+
+#ifdef __AVR_ATmega328PB__
+    EIMSK |= _BV(INT1);								// Enable INT1
+#else
     GICR |= _BV(INT1);								// Enable INT1
+#endif
 
     rotaryCount = 0;
     directionCount = DIRECTION_DEBOUNCE / 2;
@@ -107,8 +131,20 @@ void initClock() {
     DDRB |= motorAbits;								// set the motor output pins for stepper A as output
     DDRD |= motorBbits;								// set the motor output pins for stepper B as output
     OCR1A = T1_2_5ms;
-    TIMSK |= _BV(OCIE1A);							// Set the timer to trigger an interrupt every 2ms using output compare A
+
+#ifdef __AVR_ATmega328PB__
+    TIMSK1 |= _BV(OCIE1A);							// Set the timer to trigger an interrupt every 2.5ms using output compare A
+#else
+    TIMSK |= _BV(OCIE1A);							// Set the timer to trigger an interrupt every 2.5ms using output compare A
+#endif
+
+#ifdef CLOCK_X8
+    TCCR1B = _BV(CS11) + _BV(CS10) + _BV(WGM12);	// Start timer 1 with prescaler of 64 and in CTC mode (we have sped up the clock by a factor of 8)
+#else
     TCCR1B = _BV(CS11) + _BV(WGM12);				// Start timer 1 with prescaler of 8 and in CTC mode
+#endif /* CLOCK_X8 */
+
+
 
     motorAstep = 0;									// value to hold which step we are on on motor A
     motorBstep = 0;									// value to hold which step we are on on motor B
@@ -123,9 +159,23 @@ void initClock() {
     PORTB &= ~_BV(MBZ);								// Setting this low will turn off the pullup on the zero input pins
     PORTD &= ~_BV(MAZ);
 
+#ifdef __AVR_ATmega328PB__
+    TIMSK2 |= _BV(OCIE2A);							// turn on timer 2 interrupts
+    TCCR2A = _BV(WGM21);							// Start timer 2 in CTC mode
+
+# ifdef CLOCK_X8
+    TCCR2B = _BV(CS22) + _BV(CS21) + _BV(CS20);		// set a prescaler of 1024 (we have sped up the clock by a factor of 8)
+    OCR2A = 250;									// This will give an interrupt every 32ms with a 8MHz clock. I.e. 1875 ticks/min
+# else
+    TCCR2B = _BV(CS22) + _BV(CS21);					// Set a prescaler of 256
+    OCR2A = 125;									// This will give an interrupt every 32ms with a 1MHz clock. I.e. 1875 ticks/min
+# endif /* CLOCK_X8 */
+
+#else
     TCCR2 = _BV(WGM21) + _BV(CS22) + _BV(CS21);		// Start timer 2 in CTC mode with a prescaler of 256
     OCR2 = 125;										// This will give an interrupt every 32ms with a 1MHz clock. I.e. 1875 ticks/min
     TIMSK |= _BV(OCIE2);							// turn on timer 2 interrupts
+#endif
 
     Current_time_hour = EEPROM_read(EEPROM_TIME);	// Read the stored time and check it is within range
     Current_time_min = EEPROM_read(EEPROM_TIME + 1);
@@ -157,6 +207,14 @@ void setup() {
 
     initDisplay();
     initKeyInput();
+
+    // Check if the 0 key is held after a reset - if so erase the EEPROM and set a flag for a later message
+    // must be after display set up so that DDRC is set properly
+    PORTC &= ~0x07;										// Set the keypad row select to 0 for the 0 key
+    if ((MCUSR & _BV(EXTRF)) && !(PINC & _BV(PC3))) { // key 0 is on PC3 which will be 0 if pressed
+        EEPROM_erase();
+        statusFlags |= _BV(STAT_DID_RST);						// signal for a later message
+    }
 
 #ifdef		CODE_SECTION_ROTARY
     initRotary();
@@ -193,9 +251,17 @@ void setup() {
         break;
     case TYPE_RANGE:
         break;
+    case TYPE_CHESS:
+        break;
     default:
         break;
     }
+
+// If we are using the special *8 clock feature in the 328pb then turn on (THIS MUST BE DONE WITH INTERRUPTS OFF)
+#ifdef CLOCK_X8
+    CLKPR = _BV(CLKPCE);											// prepare to change the pre-scaler in the next 4 cycles
+    CLKPR = 0;														// Set the system clock pre-scaler to 1
+#endif /* CLOCK_X8 */
 }
 
 // called during .init8
@@ -274,13 +340,21 @@ ISR(INT1_vect) {
 #endif /* CODE_SECTION_ROTARY */
 
 ISR(TIMER0_OVF_vect) {								// handle timer 0 overflow
+#ifdef __AVR_ATmega328PB__
+    if((flags & _BV(FLASH_F)) && (holdOff & 0x10)) SPDR0 = 0xff; // blank the display every approx. 200ms if we are flashing
+    else SPDR0 = 0xff - dispMem[mem_ptr];				// write the given one to SPI
+    SPCR0 |= _BV(MSTR);									// Make sure we are in master mode, just in case nSS was driven low
+#else
     if((flags & _BV(FLASH_F)) && (holdOff & 0x10)) SPDR = 0xff; // blank the display every approx. 200ms if we are flashing
     else SPDR = 0xff - dispMem[mem_ptr];				// write the given one to SPI
     SPCR |= _BV(MSTR);									// Make sure we are in master mode, just in case nSS was driven low
+#endif
+
     if(nREDE_Holdoff != 0) nREDE_Holdoff--;				// maintain the nREDE hold off timer
 }
 
-ISR(SPI_STC_vect) {
+ISR(SPI_STC_handler) {
+
     PORTB |= _BV(RCLK);  								// set pin 0 of port B high
     PORTB &= ~_BV(RCLK); 								// set pin 0 of port B low  // latch onto display
     PORTC = (PORTC & ~0x07) | mem_ptr;					// Select the current digit
@@ -288,67 +362,65 @@ ISR(SPI_STC_vect) {
     mem_ptr++;											// Point at next half digit
     if (mem_ptr > 0x07) mem_ptr = 0;					// Make sure memory pointer never exceeds array size
 
-    if((flags & _BV(KEYPAD_DIS)) == 0) {
-        /* Read switch values
-         Bits PC4, PC5 and PC6 contain the button presses in the following order
+    /* Read switch values
+     Bits PC4, PC5 and PC6 contain the button presses in the following order
 
-        	(mem_ptr)	PC4	PC5	PC6
-        	Y3			S7	S8	S9
-        	Y2			S4	S5	S6
-        	Y1			S1	S2	S3
-        	Y0			S0
-        */
-        unsigned short portCtemp = ~PINC & 0b00111000;		// extract only the lines representing buttons
+    	(mem_ptr)	PC4	PC5	PC6
+    	Y3			S7	S8	S9
+    	Y2			S4	S5	S6
+    	Y1			S1	S2	S3
+    	Y0			S0
+    */
+    unsigned short portCtemp = ~PINC & 0b00111000;		// extract only the lines representing buttons
 
-        if (mem_ptr == 1) {
-            sample = ((portCtemp >> 3) & 0b0000000000000001);    // The first one of the cycle clears all other bits in sample Just the one bit to go in the bottom
-        }
-        if (mem_ptr == 2) {
-            sample |= portCtemp >> 2;
-        }
-        if (mem_ptr == 3) {
-            sample |= portCtemp << 1;
-        }
-        if (mem_ptr == 4) {
-            sample |= portCtemp << 4;
-        }
+    if (mem_ptr == 1) {
+        sample = ((portCtemp >> 3) & 0b0000000000000001);    // The first one of the cycle clears all other bits in sample Just the one bit to go in the bottom
+    }
+    if (mem_ptr == 2) {
+        sample |= portCtemp >> 2;
+    }
+    if (mem_ptr == 3) {
+        sample |= portCtemp << 1;
+    }
+    if (mem_ptr == 4) {
+        sample |= portCtemp << 4;
+    }
 
-        if(mem_ptr == 0x07) {								// only do the debounce on the 8th digit - this means all buttons will be sampled
-            if(holdOff != 0) holdOff--;								// if the holdoff counter is active then decrement it
+    if(mem_ptr == 0x07) {								// only do the debounce on the 8th digit - this means all buttons will be sampled
+        if(holdOff != 0) holdOff--;								// if the holdoff counter is active then decrement it
 
 #ifdef CODE_SECTION_IO
-            maintainTimeTriggers();
+        maintainTimeTriggers();
 #endif /*CODE_SECTION_IO*/
 
-            // Switch debounce stuff here to make sure it does not upset timing make a bright spot on the display
-            // Debounce switches using vertical counters counting up to 4.
-            // Only debounces on switch release (assuming a 1 = switch pressed)
-            unsigned short delta;
+        // Switch debounce stuff here to make sure it does not upset timing make a bright spot on the display
+        // Debounce switches using vertical counters counting up to 4.
+        // Only debounces on switch release (assuming a 1 = switch pressed)
+        unsigned short delta;
 
-            delta = buttonState ^ sample;						// bits in delta indicate a change of state since last time
-            debounceCount1 = (debounceCount1 ^ debounceCount0) & (delta & sample); // ripple the counter along (unless button not changed or it is a release)
-            debounceCount0 = ~debounceCount0 & (delta & sample); // only start a de-bounce count if a button is released
-            buttonChanged = (delta & ~(debounceCount0 | debounceCount1)); // bits set if a change has occurred
-            buttonState ^= buttonChanged; 						// Update the stored state of the buttons only when count gets to 4)
+        delta = buttonState ^ sample;						// bits in delta indicate a change of state since last time
+        debounceCount1 = (debounceCount1 ^ debounceCount0) & (delta & sample); // ripple the counter along (unless button not changed or it is a release)
+        debounceCount0 = ~debounceCount0 & (delta & sample); // only start a de-bounce count if a button is released
+        buttonChanged = (delta & ~(debounceCount0 | debounceCount1)); // bits set if a change has occurred
+        buttonState ^= buttonChanged; 						// Update the stored state of the buttons only when count gets to 4)
 
-            if(buttonChanged && (keyBufPtr < 20)) {			// only store button presses if space in buffer
-                uint16_t s = buttonState & buttonChanged;				// we are only interested in presses
-                for ( unsigned char i = '0'; i <= '9'; i++) {
-                    if (s & 0x01) {
-                        keyBuf[keyBufPtr] = i;     // if button pressed then store in buffer
-                        keyBufPtr++;
-                    }
-                    s >>= 1;
+        if(buttonChanged && (keyBufPtr < 20)) {			// only store button presses if space in buffer
+            uint16_t s = buttonState & buttonChanged;				// we are only interested in presses
+            for ( unsigned char i = '0'; i <= '9'; i++) {
+                if (s & 0x01) {
+                    keyBuf[keyBufPtr] = i;     // if button pressed then store in buffer
+                    keyBufPtr++;
                 }
-                buttonChanged = 0;
+                s >>= 1;
             }
+            buttonChanged = 0;
         }
     }
 }
 
 #ifdef CODE_SECTION_CLOCK
 
-ISR(TIMER2_COMP_vect) {								// handle timer 2 output compare interrupt
+ISR(TIMER2_COMP_handler) {								// handle timer 2 output compare interrupt
     // maintain the delay used to control the temp time if a timer is active
     if((tempTimeDelay != 0) && (tempTimeDelay != 0xFF)) {
         if (--tempTimeDelay == 0) clockFlags &= ~_BV(flagTempDisplay);
@@ -475,8 +547,14 @@ void displayByteAndWait(unsigned char n, int t, unsigned char flg, char firstCha
 void signalResetSource() {
     char chr;
 
+#ifdef __AVR_ATmega328PB__
+    unsigned char source = MCUSR;						// get the reset source
+    MCUSR = 0;											// clear reset sources
+#else
     unsigned char source = MCUCSR;						// get the reset source
     MCUCSR = 0;											// clear reset sources
+#endif
+
     if (source & _BV(WDRF)) chr = 'W';
     if (source & _BV(BORF)) chr = 'B';
     if (source & _BV(EXTRF)) {
@@ -486,12 +564,41 @@ void signalResetSource() {
     if (source & _BV(PORF))  chr = 'P';		// this one last because power on also sets brownout
 
     displayByteAndWait(msgAddr, 64, _BV(FLASH_F), chr, '-');				// Display a message for a given time and block
+
+    if(statusFlags & _BV(STAT_DID_RST)) displayAndWait("RST ", 64, 0);	// if we reset the EEPROM earlier - show a message
 }
 
 // execute a test routine
 void doTest() {
     sendMsg('P', 0);									// Write message to the serial port
     displayAndWait("SENT", 64, _BV(FLASH_F));
+}
+
+// This is just to unmuddle the keypad on the 328pb version of the board where the rows of keys are back to front!
+char mapKey(char keyPress) {
+#ifdef __AVR_ATmega328PB__
+    switch(keyPress) {
+    case '1' :
+        keyPress = '3';
+        break;
+    case '3' :
+        keyPress = '1';
+        break;
+    case '4' :
+        keyPress = '6';
+        break;
+    case '6' :
+        keyPress = '4';
+        break;
+    case '7' :
+        keyPress = '9';
+        break;
+    case '9' :
+        keyPress = '7';
+        break;
+    }
+#endif
+    return keyPress;
 }
 
 //_______________________________________________________________________________________
@@ -640,9 +747,6 @@ void procesMenuItem() {
                 dispWriteStr("OPEN", dispMem);
             } else {
                 switch(safeState) {
-                case 0:
-                    chr = ' ';
-                    break;
                 case 1:
                     chr = '+';
                     break;
@@ -651,6 +755,9 @@ void procesMenuItem() {
                     break;
                 case 3:
                     chr = '*';
+                    break;
+                default:
+                    chr = ' ';
                     break;
                 }
 
@@ -669,6 +776,11 @@ void procesMenuItem() {
                 dispWriteDecByte(dist, 'm', dispMem);	// display the distance read
             }
 #endif /* CODE_SECTION_RANGE */
+        case TYPE_CHESS:
+#ifdef	CODE_SECTION_CHESS
+            Chess_Poll();
+#endif /* CODE_SECTION_CHESS */
+            break;
         default:
             break;
         }
@@ -728,15 +840,15 @@ void procesMenuItem() {
         if (keyBufPtr > 0) {
             cli();										// this part is not interrupt safe because a key could be pressed as we access the buffer or change the pointer
             keyBufPtr--;
-            keyPress = keyBuf[keyBufPtr];				// get the current key press
+            keyPress = mapKey(keyBuf[keyBufPtr]);				// get the current key press
             sei();
             if(((menuLocal.flags & _BV(MNEU_ENTRY)) == 0) && ((menuLocal.flags & _BV(MENU_MENU)) != 0)) {
                 switch (keyPress) {
-                case '2':
+                case MENU_DOWN:
                     if((menuLocal.flags & _BV(MENU_FWD)) != 0) //step menu forward
                         getMenuItem(++menuItem);
                     break;
-                case '5':
+                case MENU_ENTER:
                     if(menuLocal.type == MENU_TYP_EXIT)	while(1); // If this was an exit menu entry force watchdog to restart in normal mode
                     if(menuLocal.type == MENU_TYP_TEST) {
                         doTest();    // Enter a test routine
@@ -746,11 +858,11 @@ void procesMenuItem() {
                         dispWriteStr( "----", dispMem);			// display the given string
                     }
                     break;
-                case '8':
+                case MENU_UP:
                     if((menuLocal.flags & _BV(MENU_BK)) != 0)	//step menu back
                         getMenuItem(--menuItem);
                     break;
-                case '4':
+                case MENU_TEST:
                     if(menuLocal.type == MENU_TYP_TEST) {
                         doTest();    // Enter a test routine
                         return;
@@ -785,12 +897,14 @@ int main (void) {
         break;
 #ifdef	CODE_SECTION_RANGE
     case TYPE_RANGE:
-        if(menuItem != MAX_TYPES) {	// only if not in menu - keypad conflicts with IIC
-            if(VL6180_Init() != 0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
-            flags |= _BV(KEYPAD_DIS);	// make sure the keypad is turned off as it conflicts with the IIC bus
-        }
+        if(VL6180_Init() != 0) displayAndWait("II2e", 32, 0); // load settings onto VL6180X
         break;
 #endif /* CODE_SECTION_RANGE */
+#ifdef	CODE_SECTION_CHESS
+    case TYPE_CHESS:
+        if(Chess_Init() != 0) displayAndWait("II2e", 32, 0); // Get set up for readingh via NFC
+        break;
+#endif /* CODE_SECTION_CHESS */
     default:
         break;
     }
