@@ -8,9 +8,9 @@ echo "Compiling code"
 
 if [ $1 = m328pb ]
 then
-	avr-gcc -Os -mmcu=atmega328pb -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c io.c telephone.c
+	avr-gcc -Os -mmcu=atmega328pb -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c io.c telephone.c chess.c
 else
-	avr-gcc -Os -mmcu=atmega8 -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c io.c telephone.c
+	avr-gcc -Os -mmcu=atmega8 -I=/usr/lib/avr/include keypad.c 14seg.c message.c utils.c menu.c range.c io.c telephone.c chess.c
 fi
 
 echo "Converting code to intel HEX"
