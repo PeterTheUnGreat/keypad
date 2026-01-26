@@ -72,6 +72,7 @@ ISR(TWI1_vect) {
         break;
     case TW_MT_SLA_ACK:
     case TW_MT_DATA_ACK:
+        debugPulse();
         if(TWI_index < TWI_datacount) TWDR1 = TWI_send_data[TWI_index++];
         else {
             controlCopy |= _BV(TWSTO);					// all finished, send stop
@@ -91,7 +92,7 @@ ISR(TWI1_vect) {
         controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
         break;
     default:
-        controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error#
+        controlCopy |= _BV(TWSTO);					// an error has occurred, send stop and signal error
         controlCopy &= ~_BV(TWIE);					// turn off interrupts to indicate transmission complete
         TWI_flags |= _BV(TWI_flag_error);
         break;
@@ -103,6 +104,8 @@ void i2cInit() {
     TWBR1 = 0x00;										// run the TWI as fast as it will go
     TWSR1 = 0x00;										// no pre-scaler
     TWCR1 = _BV(TWEN);									// turn on the TWI
+    PORTE |= _BV(PORTE0) + _BV(PORTE1);					// Enable weak pull ups on SDA and SCL
+    DDRE &= ~(_BV(PORTE0) + _BV(PORTE1));
 }
 
 int i2cTransfer(unsigned char IIC_addr, int n, int readWrite) {

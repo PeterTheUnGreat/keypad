@@ -203,7 +203,8 @@ void setup() {
 
     flags = 0;											// set all flags to 0 to start with
     statusFlags = 0;
-    tempFlags |= 0;
+    tempFlags = 0;
+    timeOut = 0;
 
     initDisplay();
     initKeyInput();
@@ -388,6 +389,7 @@ ISR(SPI_STC_handler) {
 
     if(mem_ptr == 0x07) {								// only do the debounce on the 8th digit - this means all buttons will be sampled
         if(holdOff != 0) holdOff--;								// if the holdoff counter is active then decrement it
+        if(timeOut != 0) timeOut--;								// if the timeOut counter is active then decrement it
 
 #ifdef CODE_SECTION_IO
         maintainTimeTriggers();
@@ -545,7 +547,7 @@ void displayByteAndWait(unsigned char n, int t, unsigned char flg, char firstCha
 
 // find and display the source of reset
 void signalResetSource() {
-    char chr;
+    char chr = '?';
 
 #ifdef __AVR_ATmega328PB__
     unsigned char source = MCUSR;						// get the reset source
@@ -651,8 +653,8 @@ void showAnalogueTime(unsigned short hour, unsigned short min, int Obvious) {
 void zeroMotors() {
     // only fiddle with motor flags and drive durations with interrupts off
     cli();
-    motorFlags &= ~_BV(M_FLAG_A_REV) + ~_BV(M_FLAG_B_REV);
-    motorFlags |= _BV(M_FLAG_A_MOVING) + _BV(M_FLAG_B_MOVING);
+    motorFlags &= ~(_BV(M_FLAG_A_REV) | ~_BV(M_FLAG_B_REV));
+    motorFlags |= _BV(M_FLAG_A_MOVING) | _BV(M_FLAG_B_MOVING);
     if((PINB & _BV(MBZ)) != 0) motorFlags |= _BV(M_FLAG_B_SLOT);
     else motorFlags &= ~_BV(M_FLAG_B_SLOT);
     if((PIND & _BV(MAZ)) != 0) motorFlags |= _BV(M_FLAG_A_SLOT);
@@ -664,7 +666,10 @@ void zeroMotors() {
 
     dispWriteStr( "ZERO", dispMem);						// display the given string
 
-    while(((motorFlags & _BV(M_FLAG_A_MOVING)) != 0) || ((motorFlags & _BV(M_FLAG_B_MOVING)) != 0)) wdt_reset(); // Kick the watchdog
+    timeOut = timeOut_2s
+              while(((motorFlags & _BV(M_FLAG_A_MOVING)) != 0) || ((motorFlags & _BV(M_FLAG_B_MOVING)) != 0) && timeOut) wdt_reset(); // Kick the watchdog
+    if (!timeOut) dispWriteStr( "tOUT", dispMem);						// signal that the zeroing timed out
+
 }
 
 void incTimeStorePtr( int *ptr) {
@@ -776,6 +781,7 @@ void procesMenuItem() {
                 dispWriteDecByte(dist, 'm', dispMem);	// display the distance read
             }
 #endif /* CODE_SECTION_RANGE */
+            break;
         case TYPE_CHESS:
 #ifdef	CODE_SECTION_CHESS
             Chess_Poll();
@@ -813,7 +819,6 @@ void procesMenuItem() {
                 if(str[2] == '-') str[2] = '0';
                 if(str[1] == '-') str[1] = '0'; // kludge for the single digit entry
                 m = ((str[1] - '0') * 100) + ((str[2] - '0') * 10) + (str[3] - '0'); // convert string into number
-                displayAndWait("GOOD", 32, 0);
                 if( m <= 255) {
                     EEPROM_write( menuLocal.address , (unsigned char) m);
                     displayAndWait("GOOD", 32, 0);
@@ -902,7 +907,7 @@ int main (void) {
 #endif /* CODE_SECTION_RANGE */
 #ifdef	CODE_SECTION_CHESS
     case TYPE_CHESS:
-        if(Chess_Init() != 0) displayAndWait("II2e", 32, 0); // Get set up for readingh via NFC
+        if(Chess_Init() != 0) displayAndWait("II2e", 32, 0); // Get set up for reading via NFC
         break;
 #endif /* CODE_SECTION_CHESS */
     default:

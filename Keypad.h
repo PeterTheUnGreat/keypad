@@ -20,7 +20,9 @@
 //#define			T1_100ms		12500	// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 100ms (40s per revolution 1.8deg steps with half stepping)
 #define			T1_25ms		3120
 
-
+#define			timeOut_2s			128		// Approx 2 second timeout at 16.2ms
+#define			timeOut_1s			64		// Approx 1 second timeout at 16.2ms
+#define			timeOut_500ms		32		// Approx 0.5 second timeout at 16.2ms
 //_______________________________________________________________________________________
 // Other stuff
 //_______________________________________________________________________________________
@@ -37,6 +39,7 @@ volatile unsigned char tempFlags;
 #define			TF_UNLOCKED		0			// Set to indicate an unlock event has happened
 
 volatile unsigned char	holdOff;			// Counter to keep track of hold-off period
+volatile unsigned char	timeOut;			// Counter used in local blocking loops to give an exit condition
 
 unsigned char	unitType;					// This holds a number to indicate what type of board this is
 #define			TYPE_CLOCK		0

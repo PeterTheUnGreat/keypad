@@ -7,16 +7,19 @@
 
 #include "Utils.h"
 #include "Compile.h"
+#include "Keypad.h"
 #include <avr/wdt.h>
 #include <stdbool.h>
 #include <util/twi.h>
 
-#define IIC_addr (0x29)								// I²C IIC_address of VL6180
+#define IIC_addr_range (0x29)								// I²C IIC_address of VL6180
 
 #ifdef	CODE_SECTION_RANGE
 
 //_______________________________________________________________________________________
 // Split 16-bit register IIC_address into two bytes and write the IIC_address + data via I²C
+//
+// we now have a 500ms timeout if II2 is not connected and an error is returned if the timeout is reached
 //_______________________________________________________________________________________
 //
 int WriteByte(unsigned short reg, unsigned char data) {
@@ -24,9 +27,10 @@ int WriteByte(unsigned short reg, unsigned char data) {
     TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
     TWI_send_data[2] = data & 0xFF;
     for(int tries = 3; tries > 0 ; tries--) {
-        i2cTransfer(IIC_addr, 3, TW_WRITE);
-        while((TWCR1 & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
-        if ((TWI_flags & TWI_flag_error) == 0) return 0;
+        i2cTransfer(IIC_addr_range, 3, TW_WRITE);
+        timeOut = timeOut_500ms;
+        while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
+        if (((TWI_flags &  _BV(TWI_flag_error)) == 0) || !timeOut) return 0;
     }
     return -1;										 // return -1 to indicate fail after three tries
 }
@@ -40,12 +44,14 @@ int ReadByte(unsigned short reg) {
     TWI_send_data[1] = reg & 0xFF;					// LSB of register IIC_address
 
     for(int tries = 3; tries > 0 ; tries--) {
-        i2cTransfer(IIC_addr, 2, TW_WRITE);
-        while((TWCR1 & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
-        if ((TWI_flags & TWI_flag_error) == 0) {
-            i2cTransfer(IIC_addr, 1, TW_READ);
-            while((TWCR1 & _BV(TWIE)) != 0) wdt_reset(); // as long as interrupts are ion the II2 is busy
-            if ((TWI_flags & TWI_flag_error) == 0) return 0;
+        i2cTransfer(IIC_addr_range, 2, TW_WRITE);
+        timeOut = timeOut_500ms;
+        while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
+        if ((TWI_flags &  _BV(TWI_flag_error)) == 0) {
+            i2cTransfer(IIC_addr_range, 1, TW_READ);
+            timeOut = timeOut_500ms;
+            while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
+            if (((TWI_flags &  _BV(TWI_flag_error)) == 0) || !timeOut) return 0;
         }
     }
     return -1;										// return -1 to indicate fail after three tries
