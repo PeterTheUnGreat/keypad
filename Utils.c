@@ -9,6 +9,7 @@
 
 #include "Utils.h"
 #include "Compile.h"
+#include "keypad.h"
 
 //_______________________________________________________________________________________
 // EEPROM routines
@@ -72,7 +73,6 @@ ISR(TWI1_vect) {
         break;
     case TW_MT_SLA_ACK:
     case TW_MT_DATA_ACK:
-        debugPulse();
         if(TWI_index < TWI_datacount) TWDR1 = TWI_send_data[TWI_index++];
         else {
             controlCopy |= _BV(TWSTO);					// all finished, send stop
@@ -83,7 +83,12 @@ ISR(TWI1_vect) {
         if (TWI_datacount != 1) controlCopy |= _BV(TWEA);	// If we need to receive more than one byte then make sure an ACK is sent
         break;
     case TW_MR_DATA_ACK:
-        TWI_read_data[TWI_index++] = TWDR1;				// get the next byte of data
+        TWI_read_data[TWI_index] = TWDR1;				// get the next byte of data
+#ifdef CODE_SECTION_NFC									// If we are dealing with an PN532 then we need to spot the length byte in the read data
+        if((TWI_index == 4) && (TWI_read_data[TWI_index] != 0x00) && (TWI_read_data[TWI_index] != 0xFF)) TWI_datacount = TWI_read_data[TWI_index] + 8; // the 4th byte will be the length (unless it is 0x00 (ACK) or 0xFF (NACK))
+#endif //CODE_SECTION_NFC
+        TWI_index++;
+        if(TWI_index > TWI_max_data) TWI_index = TWI_max_data; // Safety check so we don't exceed read buffer
         if(TWI_index < (TWI_datacount - 1)) controlCopy |= _BV(TWEA); // Acknowledge unless we are on the last byte
         break;
     case TW_MR_DATA_NACK:
@@ -101,21 +106,36 @@ ISR(TWI1_vect) {
 }
 
 void i2cInit() {
-    TWBR1 = 0x00;										// run the TWI as fast as it will go
+    TWBR1 = 0x02;										// This should set the TW clock to 400kHz with an 8MHz CPU clock
     TWSR1 = 0x00;										// no pre-scaler
     TWCR1 = _BV(TWEN);									// turn on the TWI
     PORTE |= _BV(PORTE0) + _BV(PORTE1);					// Enable weak pull ups on SDA and SCL
     DDRE &= ~(_BV(PORTE0) + _BV(PORTE1));
 }
+void i2cTansferStop() {
+    TWCR1 = 0;											// completely reset the i2c
+}
 
 int i2cTransfer(unsigned char IIC_addr, int n, int readWrite) {
 //	if((TWCR & _BV(TWIE)) != 0) return 0;				// respond with -1 if a transaction is ongoing
+    TWI_flags = 0;
     TWI_datacount = n;
     TWI_index = 0;
     TWI_address = (IIC_addr << 1) + readWrite;
     TWCR1 = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);	// send start turn on the TWI and enable interrupts
-    return TWI_address;
+    return 0;
 }
+
+int i2cTransferBlocking(unsigned char IIC_addr, int n, int readWrite, int timeOutValue) {
+    i2cTransfer(IIC_addr, n, readWrite);
+    timeOut = timeOutValue;
+    while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
+    if (((TWI_flags & _BV(TWI_flag_error)) == 0) && (timeOut != 0)) return 0;
+    i2cTansferStop();											// reset the i2c interface after an error or timeout
+    return -1;
+}
+
+
 #endif /* CODE_SECTION_IIC */
 
 //_______________________________________________________________________________________
@@ -158,6 +178,14 @@ void debugPulse() {
 void debugTrigPulse() {
     PORTB ^= _BV(DBG_TRIG);    // toggle off the trigger output
     PORTB ^= _BV(DBG_TRIG);
+}
+
+void debugOutByte(uint8_t dataByte) {
+    for(uint8_t i = 0; i < 8; i++) {
+        if(dataByte & 0x80) debugPulse();
+        else debugTrigPulse();
+        dataByte <<= 1;
+    }
 }
 
 //_______________________________________________________________________________________

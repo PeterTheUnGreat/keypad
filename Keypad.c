@@ -23,6 +23,7 @@
 #include "IO.h"
 #include "Telephone.h"
 #include "Chess.h"
+#include "NFC.h"
 
 // This section bellow does all of the startup stuff
 void setup(void) __attribute__ ((naked)) __attribute__ ((section (".init5"))); // do the setup before main called
@@ -717,7 +718,10 @@ void getMenuItem(int mi) {
 
 
 void procesMenuItem() {
-    char keyPress, chr;
+    char keyPress;
+#ifdef CODE_SECTION_ROTARY
+    char chr;
+#endif /* CODE_SECTION_ROTARY */
     int	h, m;
 
     char str[5] = "----";
@@ -784,7 +788,7 @@ void procesMenuItem() {
             break;
         case TYPE_CHESS:
 #ifdef	CODE_SECTION_CHESS
-            Chess_Poll();
+            if(Chess_Poll() == 0) dispWriteByte( pn532_packetbuffer[0x09], dispMem, 'C', '-');
 #endif /* CODE_SECTION_CHESS */
             break;
         default:
@@ -872,6 +876,8 @@ void procesMenuItem() {
                         doTest();    // Enter a test routine
                         return;
                     }
+                    break;
+                case '0':
                     break;
                 default:
                     break;

@@ -5,43 +5,25 @@
  *  Author: peter
  */
 
-#include "Utils.h"
 #include "Compile.h"
 #include "Keypad.h"
+#include "Utils.h"
 #include <avr/wdt.h>
-#include <util/twi.h>
+#include "NFC.h"
 
 
 #ifdef	CODE_SECTION_CHESS
 
-#define IIC_addr_Chess (0x24)								// I²C IIC_address of NFC readers
-
 int Chess_Init() {
-    i2cInit();									// prepare the IIC interface
+    PN532_init();									// prepare the PN532 interface
+    PN532_SAMConfig();								// and set up the module
+    PN532_setPassiveActivationRetries(0);			// set for non-blocking manuall polling
     return 0;
 }
 
-int NFCReadReg(unsigned char II2Addr, unsigned char reg) {
-    TWI_send_data[0] = reg;
-
-    for(int tries = 3; tries > 0 ; tries--) {
-        i2cTransfer(II2Addr, 1, TW_WRITE);
-        timeOut = timeOut_500ms;
-        while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
-        if ((TWI_flags & _BV(TWI_flag_error)) == 0) {
-            i2cTransfer(II2Addr, 1, TW_READ);
-            timeOut = timeOut_500ms;
-            while(((TWCR1 & _BV(TWIE)) != 0) && timeOut) wdt_reset(); // as long as interrupts are on the II2 is busy
-            if (((TWI_flags & _BV(TWI_flag_error)) == 0) && !timeOut) return -1;
-        }
-    }
-    return 0;										// return 0 to indicate fail after three tries
-}
-
-
-// At the moment just send some rubbish out of the IIC port
-int Chess_Poll() {
-    return NFCReadReg(IIC_addr_Chess, 0x37);
+// Just ask for the firmware version
+uint16_t Chess_Poll() {
+    return PN532_readPassiveTargetID(0);			// 0 is the baudrate of most NFC stickers etc.
 }
 
 #endif /* CODE_SECTION_CHESS */

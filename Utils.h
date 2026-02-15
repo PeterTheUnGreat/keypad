@@ -10,12 +10,15 @@
 #define UTILS_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "Compile.h"
 
 #ifdef	CODE_SECTION_IIC
 
 void i2cInit();
 int i2cTransfer(unsigned char IIC_addr, int n, int readWrite);
+int i2cTransferBlocking(unsigned char IIC_addr, int n, int readWrite, int timeOutValue);
+void i2cTansferStop();
 
 //_______________________________________________________________________________________
 // Flags to control TWI
@@ -29,9 +32,9 @@ unsigned char	TWI_address;
 
 volatile int	TWI_datacount;
 volatile int	TWI_index;
-#define			TWI_max_data			4
-unsigned char	TWI_send_data[TWI_max_data];	// store for TWI data
-volatile unsigned char	TWI_read_data[TWI_max_data];	// store for TWI data
+#define			TWI_max_data			64
+uint8_t	TWI_send_data[TWI_max_data];	// store for TWI data
+volatile uint8_t TWI_read_data[TWI_max_data];	// store for TWI data
 
 #endif /* CODE_SECTION_IIC */
 
@@ -61,6 +64,7 @@ void debugOff();
 void debugToggle();
 void debugPulse();
 void debugTrigPulse();
+void debugOutByte(uint8_t dataByte);
 #endif /* CODE_SECTION_DEBUG */
 
 #endif /* UTILS_H_ */

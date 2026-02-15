@@ -9,8 +9,12 @@
 // General timing constants
 //_______________________________________________________________________________________
 //
-
+#ifdef CLOCK_X8
+#define F_CPU 	8000000UL			// we are running a 8MHz clock
+#else
 #define F_CPU 	1000000UL			// we are running a 1MHz clock
+#endif /* CLOCK_X8 */
+
 
 #define			T1_1ms			125		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 1ms (0.4s per revolution 1.8deg steps with half stepping)
 #define			T1_2_5ms		312		// With a clock speed of 1MHz and prescaler of 8 give an interrupt every 2.5ms (1s per revolution 1.8deg steps with half stepping)
@@ -23,6 +27,7 @@
 #define			timeOut_2s			128		// Approx 2 second timeout at 16.2ms
 #define			timeOut_1s			64		// Approx 1 second timeout at 16.2ms
 #define			timeOut_500ms		32		// Approx 0.5 second timeout at 16.2ms
+#define			timeOut_100ms		8		// approx 100ms timeout at 16.2ms
 //_______________________________________________________________________________________
 // Other stuff
 //_______________________________________________________________________________________
